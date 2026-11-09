@@ -6,7 +6,7 @@
 
 Proteus is a single, portable `Proteus.exe` for 64-bit Windows 10 or 11. There is nothing to install.
 
-1. Build it (see [Building from source](#building-from-source)) or copy a `Proteus.exe` you already have.
+1. Download `Proteus.exe` from the [latest release](https://github.com/Urrrshurrr/Proteus/releases/latest), or the `portable.zip` if you want [portable mode](12-settings-portable.md#portable-mode) ready to go. You can also [build it yourself](#building-from-source).
 2. Put it anywhere you like, for example `C:\Tools\Proteus\`.
 3. Double-click it.
 

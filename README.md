@@ -15,6 +15,7 @@ thousands of files in one go. Every batch can be undone, even days later.
 [![License: MIT](https://img.shields.io/badge/license-MIT-22c55e)](LICENSE)
 [![Portable](https://img.shields.io/badge/install-none%20%C2%B7%20portable-0ea5c6)](docs/guide/12-settings-portable.md#portable-mode)
 
+[**⬇ Download**](https://github.com/Urrrshurrr/Proteus/releases/latest) ·
 [**Knowledge base**](docs/guide/README.md) ·
 [Getting started](docs/guide/01-getting-started.md) ·
 [Rule reference](docs/guide/04-rule-reference.md) ·
@@ -135,7 +136,7 @@ and history live next to the exe.
 
 ## 🚀 Quick start
 
-1. **Get Proteus**: build it ([below](#-build-from-source)) or use a `Proteus.exe` you already have. Copy it anywhere and run it.
+1. **Get Proteus**: download `Proteus.exe` (or the portable zip) from the [latest release](https://github.com/Urrrshurrr/Proteus/releases/latest), put it anywhere and run it. No installer needed.
 2. **Add files**: drag files or folders onto the window.
 3. **Add rules**: click **+ Add rule** and watch the *New name* column.
 4. **Check**: anything marked *Conflict* or *Invalid* is skipped; hover to see why.
