@@ -23,6 +23,9 @@ public interface IUiServices
     Task<string?> PickFolderAsync();
     Task<string?> PickCsvAsync();
     Task<string?> SaveCsvAsync(string suggestedName);
+
+    /// <summary>Shows the "Match names from a folder" window; true when the user chose to use the names.</summary>
+    Task<bool> ShowMatchFolderAsync(MatchFolderViewModel vm) => Task.FromResult(false);
 }
 
 public sealed partial class MainViewModel : ObservableObject
@@ -834,6 +837,45 @@ public sealed partial class MainViewModel : ObservableObject
         SelectedRule = rule;
         var note = folderParts > 0 ? $" {folderParts:N0} new name{(folderParts == 1 ? "" : "s")} included a folder; only the file name part is used (use Move to change folders)." : "";
         ShowNotice($"Imported {rows.Count:N0} name{(rows.Count == 1 ? "" : "s")} as a mapping rule; added {_all.Count - before:N0} file{(_all.Count - before == 1 ? "" : "s")} to the list.{note}");
+    }
+
+    // ---------- Match names from a folder ----------
+    [RelayCommand]
+    private async Task MatchFromFolderAsync()
+    {
+        if (Ui == null) return;
+        var files = _all.Where(f => !f.Entry.IsFolder).Select(f => f.Entry).ToList();
+        if (files.Count == 0)
+        {
+            ShowNotice("Add the files you want to rename first, then match them to a folder of names.", isError: true);
+            return;
+        }
+        var match = new MatchFolderViewModel(files, Ui, Rules.Any(r => r.IsEnabled));
+        if (!await Ui.ShowMatchFolderAsync(match)) return;
+        ApplyNameMatches(match.ChosenPairs(), match.TurnOffOtherRules);
+    }
+
+    /// <summary>
+    /// Adds a mapping rule that gives each file (by full path) its new name, keeping the file's extension.
+    /// Optionally turns the other rules off so the names come out exactly as given.
+    /// </summary>
+    public void ApplyNameMatches(IReadOnlyList<(string Path, string NewBaseName)> pairs, bool turnOffOtherRules)
+    {
+        if (pairs.Count == 0) return;
+        var lines = new System.Text.StringBuilder();
+        foreach (var (path, name) in pairs) lines.Append(path).Append('\t').Append(name).Append('\n');
+        int disabled = 0;
+        if (turnOffOtherRules)
+            foreach (var r in Rules.Where(r => r.IsEnabled))
+            {
+                r.IsEnabled = false;
+                disabled++;
+            }
+        var rule = new ListRule { Mode = ListMode.Mapping, KeepExtension = true, Lines = lines.ToString() };
+        Rules.Add(rule);
+        SelectedRule = rule;
+        var note = disabled > 0 ? $" Turned off {disabled:N0} other rule{(disabled == 1 ? "" : "s")} so the names match exactly." : "";
+        ShowNotice($"Matched {pairs.Count:N0} file{(pairs.Count == 1 ? "" : "s")} to names from the folder. Check the preview, then rename.{note}");
     }
 
     [RelayCommand]

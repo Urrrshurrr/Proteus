@@ -156,6 +156,12 @@ public partial class MainWindow : Window, IUiServices
         return file?.TryGetLocalPath();
     }
 
+    public async Task<bool> ShowMatchFolderAsync(MatchFolderViewModel vm)
+    {
+        var window = new MatchFolderWindow(vm);
+        return await window.ShowDialog<bool>(this);
+    }
+
     // ---------- Drag and drop ----------
     private void OnDragOver(object? sender, DragEventArgs e)
     {

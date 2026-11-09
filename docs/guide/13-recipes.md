@@ -67,6 +67,24 @@ if (m) {
 }
 ```
 
+## TV episodes: copy the names from your media library
+
+You have better copies of episodes and want them to take the **exact** names already used in your
+Jellyfin, Plex or Kodi library, so you can copy them over the old files without breaking anything.
+
+`Silicon.Valley.S01E03.2160p.WEB-DL.x265.mkv` → `Silicon Valley - 01x03 - Articles of Incorporation.mkv`
+
+1. Clear the rule stack and add the new episode files.
+2. `...` → **Match names from a folder…** → **Browse…** to the show's folder in the library
+   (for example `Z:\media\tvshows\Silicon Valley (2014)`). Leave *Include subfolders* on for
+   `Season 01`, `Season 02` folders.
+3. Episodes are paired by season and episode number. Check the pairs, fix any with the drop-down,
+   and press **Use … names**.
+4. Check the preview, then **Rename**.
+5. Copy the renamed files into the library folders, replacing the old ones.
+
+See [Match names from a folder](09-csv.md#match-names-from-a-folder) for the details.
+
 ## Videos: add resolution and length
 
 `clip.mp4` → `clip [1080p 03-42].mp4`
@@ -112,7 +130,7 @@ Or **Remove characters**: 4 from the start.
 2. `...` → **Import a rename list (CSV)…**
 3. Check the preview, then **Rename**.
 
-See [CSV import and export](09-csv.md).
+See [Names from a folder or a CSV](09-csv.md).
 
 ## Number files in a chosen order
 

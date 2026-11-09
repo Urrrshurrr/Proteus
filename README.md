@@ -102,9 +102,9 @@ removes folders it created, and sends copies to the Recycle Bin, carefully.
 <tr>
 <td valign="top">
 
-### 📊 CSV in, CSV out
-Rename straight from a spreadsheet (current file → new name), or export the whole preview for
-review and sign-off.
+### 📊 Names from elsewhere
+Copy the names from another folder (each file paired by S01E03 or by title, checked by you
+first), rename straight from a spreadsheet, or export the whole preview for review.
 
 </td>
 <td valign="top">
@@ -155,6 +155,7 @@ and history live next to the exe.
 | `Invoice 31.12.2024.pdf` → `Invoice 2024-12-31.pdf` | *Reformat dates* `dd.MM.yyyy` → `yyyy-MM-dd` |
 | `clip.mp4` → `clip [1080p 03-42].mp4` | *Insert* ` [<video:quality> <video:duration>]` at end |
 | Rename from an Excel list | `...` → **Import a rename list (CSV)** |
+| Give new episode files the exact names in your Jellyfin / Plex library | `...` → **[Match names from a folder](docs/guide/09-csv.md#match-names-from-a-folder)** |
 
 More in the [recipes](docs/guide/13-recipes.md).
 
@@ -170,7 +171,7 @@ More in the [recipes](docs/guide/13-recipes.md).
 | [JavaScript scripting](docs/guide/06-javascript.md) | Script API, recipes, limits |
 | [Copy and move](docs/guide/07-copy-move.md) | Destinations, subfolders, name clashes |
 | [Dates and attributes](docs/guide/08-dates-attributes.md) | Timestamps and file attributes |
-| [CSV import and export](docs/guide/09-csv.md) | Rename from spreadsheets, export previews |
+| [Names from a folder or a CSV](docs/guide/09-csv.md) | Copy names from another folder, rename from spreadsheets, export previews |
 | [Presets, history and undo](docs/guide/10-presets-history.md) | Reuse setups, undo past batches |
 | [Safety and status messages](docs/guide/11-safety.md) | What every status means |
 | [Settings and portable mode](docs/guide/12-settings-portable.md) | Themes, data locations, USB use |

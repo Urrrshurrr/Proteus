@@ -21,7 +21,7 @@ Everything you need to use **Proteus - File Renamer**, from your first rename to
 | 6 | [JavaScript scripting](06-javascript.md) | Writing your own rename logic, the full script API, recipes, limits |
 | 7 | [Copy and move](07-copy-move.md) | Copying or moving into folders, sorting into subfolders, name clashes |
 | 8 | [Dates and attributes](08-dates-attributes.md) | Setting created/modified/accessed dates, read-only, hidden and more |
-| 9 | [CSV import and export](09-csv.md) | Renaming from a spreadsheet, exporting a preview for review |
+| 9 | [Names from a folder or a CSV](09-csv.md) | Copying names from another folder (e.g. a media library), renaming from a spreadsheet, exporting a preview |
 | 10 | [Presets, history and undo](10-presets-history.md) | Saving rule sets, the History panel, undoing a batch days later |
 | 11 | [Safety and status messages](11-safety.md) | What every status means and how Proteus protects your files |
 | 12 | [Settings and portable mode](12-settings-portable.md) | Themes, where data is stored, running from a USB stick |

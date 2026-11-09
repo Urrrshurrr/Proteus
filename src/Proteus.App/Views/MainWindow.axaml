@@ -206,7 +206,10 @@
                       <Separator Margin="0,6" />
                       <CheckBox Content="Highlight changed characters" IsChecked="{Binding HighlightChanges}" />
                       <Separator Margin="0,6" />
-                      <TextBlock Classes="section" Text="CSV" Margin="0,0,0,4" />
+                      <TextBlock Classes="section" Text="NAMES FROM ELSEWHERE" Margin="0,0,0,4" />
+                      <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="OnFlyoutButtonClick"
+                              Command="{Binding MatchFromFolderCommand}" AutomationProperties.Name="Match names from a folder"
+                              ToolTip.Tip="Give these files the names of matching files in another folder, e.g. TV episodes by S01E03">Match names from a folder…</Button>
                       <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="OnFlyoutButtonClick"
                               Command="{Binding ImportCsvCommand}" AutomationProperties.Name="Import rename list">Import a rename list (CSV)…</Button>
                       <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="OnFlyoutButtonClick"

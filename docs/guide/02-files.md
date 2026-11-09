@@ -10,7 +10,7 @@
 | Add files | Click **Add files** (or press **Ctrl+O**) and pick one or more files. |
 | Add folder | Click **Add folder** and pick a folder. Every file inside is added. |
 | Command line | `Proteus.exe "C:\path\one" "C:\path\two"`, or drop files onto `Proteus.exe` itself. |
-| CSV | Import a rename list (see [CSV import and export](09-csv.md)). |
+| CSV | Import a rename list (see [Names from a folder or a CSV](09-csv.md)). |
 
 Files already in the list are never added twice. Files are added in natural order, so `file2` comes before `file10`.
 
