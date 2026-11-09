@@ -64,4 +64,4 @@ The newest 500 batches are kept. Older entries are removed automatically.
 
 ---
 
-← [Names from a folder or a CSV](09-csv.md) · Next: [Safety and status messages](11-safety.md) →
+← [Names from a folder, a style or a CSV](09-csv.md) · Next: [Safety and status messages](11-safety.md) →

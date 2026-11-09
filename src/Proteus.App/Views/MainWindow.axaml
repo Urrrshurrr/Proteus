@@ -211,6 +211,9 @@
                               Command="{Binding MatchFromFolderCommand}" AutomationProperties.Name="Match names from a folder"
                               ToolTip.Tip="Give these files the names of matching files in another folder, e.g. TV episodes by S01E03">Match names from a folder…</Button>
                       <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="OnFlyoutButtonClick"
+                              Command="{Binding MatchStyleCommand}" AutomationProperties.Name="Match a naming style"
+                              ToolTip.Tip="Show a few names in the style you want; every file is rebuilt in that style">Match a naming style…</Button>
+                      <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="OnFlyoutButtonClick"
                               Command="{Binding ImportCsvCommand}" AutomationProperties.Name="Import rename list">Import a rename list (CSV)…</Button>
                       <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="OnFlyoutButtonClick"
                               Command="{Binding ExportCsvCommand}" AutomationProperties.Name="Export preview">Export the preview to CSV…</Button>

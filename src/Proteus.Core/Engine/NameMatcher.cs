@@ -46,16 +46,16 @@ public static class NameMatcher
     private const RegexOptions Opts = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant;
 
     // S01E03, S1E3, S01.E03, S01E03E04, S01E03-E04, S01E03-04
-    private static readonly Regex SxE = new(
-        @"(?<![a-z0-9])s(?<s>\d{1,3})[ ._-]?e(?<e>\d{1,4})(?:(?:[ ._]?-[ ._]?|[ ._]?)e?(?<e2>\d{1,4})(?![\dp]))?", Opts, Timeout);
+    internal static readonly Regex SxE = new(
+        @"(?<![a-z0-9])s(?<s>\d{1,3})[ ._-]?e(?<e>\d{1,4})(?:(?:(?:[ ._]?-[ ._]?)?e|-)(?<e2>\d{1,4})(?![\dp]))?", Opts, Timeout);
     // 1x03, 01x03
-    private static readonly Regex NxN = new(@"(?<![\da-z])(?<s>\d{1,2})x(?<e>\d{2,3})(?!\d)", Opts, Timeout);
+    internal static readonly Regex NxN = new(@"(?<![\da-z])(?<s>\d{1,2})x(?<e>\d{2,3})(?!\d)", Opts, Timeout);
     // Season 1 Episode 3
-    private static readonly Regex SeasonWords = new(@"season[ ._-]*(?<s>\d{1,3})[^a-z0-9]{0,5}(?:episode|ep)[ ._-]*(?<e>\d{1,4})", Opts, Timeout);
+    internal static readonly Regex SeasonWords = new(@"season[ ._-]*(?<s>\d{1,3})[^a-z0-9]{0,5}(?:episode|ep)[ ._-]*(?<e>\d{1,4})", Opts, Timeout);
     // Episode 3, Ep 03, E03 (no season)
-    private static readonly Regex EpOnly = new(@"(?<![a-z0-9])(?:episode|ep|e)[ ._-]?(?<e>\d{1,4})(?!\d)", Opts, Timeout);
+    internal static readonly Regex EpOnly = new(@"(?<![a-z0-9])(?:episode|ep|e)[ ._-]?(?<e>\d{1,4})(?!\d)", Opts, Timeout);
 
-    private static readonly HashSet<string> Noise = new(StringComparer.Ordinal)
+    internal static readonly HashSet<string> Noise = new(StringComparer.Ordinal)
     {
         "480p", "576p", "720p", "1080p", "1080i", "2160p", "4320p", "4k", "8k", "uhd", "fhd", "hd", "sd",
         "hdr", "hdr10", "hdr10plus", "dv", "dovi", "sdr", "10bit", "8bit", "12bit",
@@ -120,7 +120,7 @@ public static class NameMatcher
         var sb = new StringBuilder(text.Length);
         foreach (var c in text)
         {
-            if (c == '\'' || c == '’') continue; // "don't" and "dont" read the same
+            if (c == '\'' || c == '\u2019') continue; // "don't" and "dont" read the same
             sb.Append(char.IsLetterOrDigit(c) ? c : ' ');
         }
         var tokens = new List<string>();

@@ -199,9 +199,13 @@ public sealed partial class MatchFolderViewModel : ObservableObject
         Options.Add(ReferenceOption.None);
         var options = names.Select(n => new ReferenceOption(n, n)).ToList();
         foreach (var o in options) Options.Add(o);
+        var keys = _files.Select(f => NameMatcher.FindEpisode(f.BaseName)).ToList();
         foreach (var m in matches)
         {
             var row = new MatchRowViewModel(_files[m.SourceIndex], Options, m.ReferenceIndex >= 0 ? options[m.ReferenceIndex] : ReferenceOption.None, m.Kind, m.Score);
+            // Two copies of the same episode: only one can take the name.
+            if (m.ReferenceIndex < 0 && keys[m.SourceIndex] is { } k)
+                row.SameEpisodeAsOther = matches.Any(o => o.SourceIndex != m.SourceIndex && o.ReferenceIndex >= 0 && keys[o.SourceIndex] is { } ok && ok.SameAs(k));
             row.PropertyChanged += OnRowChanged;
             Rows.Add(row);
         }
@@ -220,11 +224,13 @@ public sealed partial class MatchFolderViewModel : ObservableObject
         }
         int episode = Rows.Count(r => r.Kind == MatchKind.Episode);
         int similar = Rows.Count(r => r.Kind == MatchKind.Similar);
-        int none = Rows.Count(r => r.Kind == MatchKind.None);
+        int same = Rows.Count(r => r.Kind == MatchKind.None && r.SameEpisodeAsOther);
+        int none = Rows.Count(r => r.Kind == MatchKind.None) - same;
         var parts = new List<string>();
         if (episode > 0) parts.Add($"{episode:N0} by episode number");
         if (similar > 0) parts.Add($"{similar:N0} by similar name");
         if (none > 0) parts.Add($"{none:N0} without a match");
+        if (same > 0) parts.Add($"{same:N0} left out as a second copy of an episode");
         Summary = $"Found {referenceCount:N0} name{(referenceCount == 1 ? "" : "s")}. Matched " + string.Join(", ", parts) + ". Check each pair, and pick a different name where needed.";
     }
 
@@ -290,6 +296,9 @@ public sealed partial class MatchRowViewModel : ObservableObject
     public string CurrentName => Entry.FileName;
     public string Folder => Entry.Directory;
 
+    /// <summary>Unmatched because another file in the list is the same episode and took the name.</summary>
+    public bool SameEpisodeAsOther { get; set; }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(NewName), nameof(IsUnchanged), nameof(Confidence), nameof(ConfidenceTip), nameof(IsSure), nameof(IsUnsure), nameof(IsPicked))]
     private ReferenceOption? _selected;
@@ -319,7 +328,7 @@ public sealed partial class MatchRowViewModel : ObservableObject
     {
         get
         {
-            if (Selected?.Name == null) return "No match";
+            if (Selected?.Name == null) return SameEpisodeAsOther ? "Same episode" : "No match";
             if (IsUnchanged) return "Same name";
             if (_userPicked) return "Your pick";
             return Kind == MatchKind.Episode ? "Episode" : Score >= 0.6 ? "Similar" : "Weak";
@@ -333,6 +342,7 @@ public sealed partial class MatchRowViewModel : ObservableObject
         "Weak" => "Only a loose resemblance. Please check this one.",
         "Your pick" => "You chose this name.",
         "Same name" => "The file already has this name, so it is left alone.",
+        "Same episode" => "Another file in your list is the same episode and took its name. If this copy is the one you want, pick the name here instead.",
         _ => "Nothing in the folder was close enough. Pick a name from the list, or leave the file as it is.",
     };
 

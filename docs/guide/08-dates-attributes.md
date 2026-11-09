@@ -85,4 +85,4 @@ Read-only → *Turn on*. No rules needed: the button reads **Update N items**.
 
 ---
 
-← [Copy and move](07-copy-move.md) · Next: [Names from a folder or a CSV](09-csv.md) →
+← [Copy and move](07-copy-move.md) · Next: [Names from a folder, a style or a CSV](09-csv.md) →

@@ -162,6 +162,12 @@ public partial class MainWindow : Window, IUiServices
         return await window.ShowDialog<bool>(this);
     }
 
+    public async Task<bool> ShowMatchStyleAsync(MatchStyleViewModel vm)
+    {
+        var window = new MatchStyleWindow(vm);
+        return await window.ShowDialog<bool>(this);
+    }
+
     // ---------- Drag and drop ----------
     private void OnDragOver(object? sender, DragEventArgs e)
     {

@@ -85,6 +85,10 @@ Jellyfin, Plex or Kodi library, so you can copy them over the old files without 
 
 See [Match names from a folder](09-csv.md#match-names-from-a-folder) for the details.
 
+*No library copy yet?* `...` → **Match a naming style…**, add two or three names from your library
+as samples, and every episode is rebuilt in that style from its own name. See
+[Match a naming style](09-csv.md#match-a-naming-style).
+
 ## Videos: add resolution and length
 
 `clip.mp4` → `clip [1080p 03-42].mp4`
@@ -130,7 +134,7 @@ Or **Remove characters**: 4 from the start.
 2. `...` → **Import a rename list (CSV)…**
 3. Check the preview, then **Rename**.
 
-See [Names from a folder or a CSV](09-csv.md).
+See [Names from a folder, a style or a CSV](09-csv.md).
 
 ## Number files in a chosen order
 

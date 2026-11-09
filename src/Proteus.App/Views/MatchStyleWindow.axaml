@@ -1,0 +1,161 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Proteus.App.ViewModels"
+        xmlns:engine="using:Proteus.Core.Engine"
+        x:Class="Proteus.App.Views.MatchStyleWindow"
+        x:DataType="vm:MatchStyleViewModel"
+        Title="Match a naming style"
+        Icon="/Assets/proteus.ico"
+        Width="1120" Height="780" MinWidth="820" MinHeight="560"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource WindowBrush}">
+
+  <Window.Styles>
+    <Style Selector="Border.conf">
+      <Setter Property="CornerRadius" Value="999" />
+      <Setter Property="Padding" Value="9,2" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+    </Style>
+    <Style Selector="Border.conf TextBlock">
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+    </Style>
+    <Style Selector="Border.conf.sure">
+      <Setter Property="Background" Value="{DynamicResource SuccessSoftBrush}" />
+    </Style>
+    <Style Selector="Border.conf.sure TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+    </Style>
+    <Style Selector="Border.conf.unsure">
+      <Setter Property="Background" Value="{DynamicResource WarningSoftBrush}" />
+    </Style>
+    <Style Selector="Border.conf.unsure TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+    </Style>
+    <Style Selector="Border.conf.dup">
+      <Setter Property="Background" Value="{DynamicResource DangerSoftBrush}" />
+    </Style>
+    <Style Selector="Border.conf.dup TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+    </Style>
+    <Style Selector="TextBlock.failed">
+      <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+    </Style>
+    <Style Selector="Grid.srow.off TextBlock.cur">
+      <Setter Property="Opacity" Value="0.5" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="20,16,20,16">
+
+    <!-- Header -->
+    <StackPanel Spacing="4">
+      <TextBlock Classes="title" Text="Match a naming style" />
+      <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12.5"
+                 Text="Show Proteus a few names in the style you want. It works out the pattern, then rebuilds every file in your list that way from what its own name contains. Each file keeps its extension. Nothing is renamed until you press Rename in the main window." />
+    </StackPanel>
+
+    <!-- Samples and pattern -->
+    <Grid Grid.Row="1" ColumnDefinitions="*,16,*" Margin="0,14,0,0">
+      <StackPanel Spacing="6">
+        <TextBlock Classes="label" Text="Sample names, one per line" />
+        <TextBox Classes="mono" Text="{Binding Samples}" AcceptsReturn="True" TextWrapping="NoWrap" Height="132"
+                 PlaceholderText="Silicon Valley - 01x01 - Minimum Viable Product&#x0a;Silicon Valley - 01x02 - The Cap Table"
+                 AutomationProperties.Name="Sample names" />
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <Button Classes="soft" Command="{Binding AddSampleFilesCommand}" AutomationProperties.Name="Add sample files">Add sample files…</Button>
+          <Button Classes="soft" Command="{Binding AddSampleFolderCommand}" AutomationProperties.Name="Add samples from a folder"
+                  ToolTip.Tip="Reads up to 40 names from a folder and its subfolders, e.g. a show in your media library">Add from a folder…</Button>
+          <Button Classes="ghost" Command="{Binding ClearSamplesCommand}">Clear</Button>
+        </StackPanel>
+      </StackPanel>
+
+      <StackPanel Grid.Column="2" Spacing="6">
+        <TextBlock Classes="label" Text="Pattern (learned from the samples; you can edit it)" />
+        <TextBox Classes="mono" Text="{Binding Template}" AutomationProperties.Name="Pattern"
+                 PlaceholderText="&lt;show&gt; - &lt;season:00&gt;x&lt;episode:00&gt; - &lt;title&gt;" />
+        <TextBlock Classes="faint" FontSize="11" TextWrapping="Wrap" Text="{x:Static vm:MatchStyleViewModel.FieldHelp}"
+                   FontFamily="{StaticResource MonoFont}" />
+        <TextBlock FontSize="12" TextWrapping="Wrap" Text="{Binding LearnSummary}" Classes="muted" Classes.failed="{Binding LearnFailed}" />
+        <Grid ColumnDefinitions="*,8,*" RowDefinitions="Auto,Auto,6,Auto,Auto">
+          <TextBlock Classes="label" Text="Words separated by" />
+          <ComboBox Grid.Row="1" HorizontalAlignment="Stretch" ItemsSource="{x:Static vm:MatchStyleViewModel.Separators}" SelectedItem="{Binding Separator}"
+                    DisplayMemberBinding="{ReflectionBinding Label}" AutomationProperties.Name="Words separated by" />
+          <TextBlock Grid.Column="2" Classes="label" Text="Capitalisation" />
+          <ComboBox Grid.Row="1" Grid.Column="2" HorizontalAlignment="Stretch" ItemsSource="{x:Static vm:MatchStyleViewModel.Cases}" SelectedItem="{Binding Case}"
+                    DisplayMemberBinding="{ReflectionBinding Label}" AutomationProperties.Name="Capitalisation" />
+          <TextBlock Grid.Row="3" Classes="label" Text="Show name (optional)" />
+          <TextBox Grid.Row="4" Text="{Binding ShowOverride}" PlaceholderText="{Binding ShowPlaceholder}" AutomationProperties.Name="Show name"
+                   ToolTip.Tip="Type a name to use it for every file, e.g. when the files use an abbreviation" />
+          <TextBlock Grid.Row="3" Grid.Column="2" Classes="label" Text="Year (optional)" />
+          <TextBox Grid.Row="4" Grid.Column="2" Text="{Binding YearOverride}" PlaceholderText="From each file's name" AutomationProperties.Name="Year"
+                   ToolTip.Tip="Used for every file when the pattern has &lt;year&gt;" />
+        </Grid>
+      </StackPanel>
+    </Grid>
+
+    <!-- Options -->
+    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="18" Margin="0,12,0,10">
+      <CheckBox Content="Keep small words (of, the, and…) lowercase" IsChecked="{Binding SmallWordsLower}" />
+      <CheckBox Content="Turn off my other rules so names match exactly" IsChecked="{Binding TurnOffOtherRules}"
+                IsVisible="{Binding HasOtherRules}" />
+    </StackPanel>
+
+    <!-- Rows -->
+    <Border Grid.Row="3" Classes="card" Padding="0">
+      <Grid RowDefinitions="Auto,Auto,*">
+        <TextBlock Margin="14,10" Classes="muted" FontSize="12.5" TextWrapping="Wrap" Text="{Binding RowSummary}" IsVisible="{Binding HasTemplate}" />
+        <Grid Grid.Row="1" ColumnDefinitions="40,*,28,*,150" Height="28" Background="{DynamicResource SurfaceRaisedBrush}">
+          <TextBlock Grid.Column="1" Classes="section" Text="FILE IN YOUR LIST" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="3" Classes="section" Text="NEW NAME (EDIT IF NEEDED)" VerticalAlignment="Center" Margin="4,0,0,0" />
+          <TextBlock Grid.Column="4" Classes="section" Text="STATUS" VerticalAlignment="Center" />
+        </Grid>
+        <ScrollViewer Grid.Row="2">
+          <ItemsControl ItemsSource="{Binding Rows}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:StyleRowViewModel">
+                <Grid ColumnDefinitions="40,*,28,*,150" MinHeight="40" Classes="srow" Classes.off="{Binding !IsIncluded}"
+                      ToolTip.Tip="{Binding Folder}">
+                  <CheckBox IsChecked="{Binding IsIncluded}" HorizontalAlignment="Center" VerticalAlignment="Center" MinHeight="0" Padding="0"
+                            AutomationProperties.Name="Rename this file" />
+                  <TextBlock Grid.Column="1" Classes="cur" Text="{Binding CurrentName}" VerticalAlignment="Center"
+                             TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  <TextBlock Grid.Column="2" Classes="icon faint" Text="&#xE76C;" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  <Grid Grid.Column="3" ColumnDefinitions="*,Auto" VerticalAlignment="Center" Margin="0,4,10,4">
+                    <TextBox Text="{Binding NewBaseName}" AutomationProperties.Name="New name" />
+                    <TextBlock Grid.Column="1" Classes="faint" Text="{Binding Extension}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                  </Grid>
+                  <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <Border Classes="conf" Classes.sure="{Binding IsReady}" Classes.unsure="{Binding IsPartial}" Classes.dup="{Binding IsDuplicate}"
+                            ToolTip.Tip="{Binding StatusTip}">
+                      <TextBlock Text="{Binding Status}" />
+                    </Border>
+                    <Button Classes="ghost iconbtn" Width="24" Height="24" IsVisible="{Binding IsEdited}" Command="{Binding ResetCommand}"
+                            AutomationProperties.Name="Undo my edit" ToolTip.Tip="Go back to the styled name">
+                      <TextBlock Classes="icon" Text="&#xE7A7;" FontSize="11" />
+                    </Button>
+                  </StackPanel>
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+
+    <!-- Buttons -->
+    <Grid Grid.Row="4" ColumnDefinitions="*,Auto" Margin="0,14,0,0">
+      <TextBlock Classes="faint" FontSize="11.5" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0"
+                 Text="Only what is in each file's name can be used. A missing episode title can be typed in, or taken from your library with Match names from a folder. The names become a List of names rule, so you still get the preview and can undo." />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <Button Classes="soft" Command="{Binding CancelCommand}" Padding="16,8" IsCancel="True">Cancel</Button>
+        <Button Classes="primary" Command="{Binding ApplyCommand}" IsEnabled="{Binding CanApply}" Padding="18,8"
+                Content="{Binding ApplyText}" AutomationProperties.Name="Use these names" />
+      </StackPanel>
+    </Grid>
+  </Grid>
+</Window>

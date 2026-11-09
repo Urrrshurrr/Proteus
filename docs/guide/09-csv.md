@@ -1,8 +1,9 @@
-# 9. Names from a folder or a CSV
+# 9. Names from a folder, a style or a CSV
 
-[Knowledge base](README.md) › Names from a folder or a CSV
+[Knowledge base](README.md) › Names from a folder, a style or a CSV
 
-Sometimes the new names already exist somewhere else: in another folder, or in a spreadsheet.
+Sometimes the new names already exist somewhere else: in another folder, in a few example names,
+or in a spreadsheet.
 Everything on this page is in the `...` menu above the file list.
 
 ## Match names from a folder
@@ -81,6 +82,78 @@ Nothing is renamed yet. You see the normal preview, where conflicts are flagged 
   *Replace the files in the destination*.
 - The library folder is only read. Nothing in it is changed.
 - Want to change a few names by hand after matching? Edit the lines of the **List of names** rule.
+- Two copies of the same episode in your list? Only one can take the name; the other is marked
+  **Same episode**. Pick the name on that row instead if it's the copy you want.
+
+## Match a naming style
+
+Use this when there is no folder with the exact names, but you know the **style** you want: show
+Proteus a few names written that way, and it rebuilds every file in your list in the same style.
+
+`Silicon.Valley.S01E08.Optimal.Tip-to-Tip.Efficiency.1080p.BluRay.x264-GRP.mkv`
+→ `Silicon Valley - 01x08 - Optimal Tip-to-Tip Efficiency.mkv`
+
+### 1. Give it some samples
+
+`...` → **Match a naming style…**. In *Sample names*, add two or three names in the style you want:
+
+- **Add sample files…** picks files (only their names are used),
+- **Add from a folder…** reads up to 40 names from a folder and its subfolders, such as a show
+  already in your media library, or
+- type or paste names, one per line. Extensions are ignored.
+
+### 2. Check the pattern
+
+Proteus works out the pattern and shows it, for example:
+
+```
+<show> - <season:00>x<episode:00> - <title>
+```
+
+| Field | Meaning |
+|---|---|
+| `<show>` | Show or film name |
+| `<year>` | Year, e.g. `2014` |
+| `<season:00>` | Season number. The number of zeros is the padding: `<season:0>` gives `1`, `<season:00>` gives `01`. |
+| `<episode:00>` | Episode number, padded the same way. Double episodes become `01-E02` after an `E`, or `01-02`. |
+| `<title>` | Episode title |
+| `<quality>` | Resolution, e.g. `1080p` |
+
+Everything else in the pattern (`" - "`, `S`, `E`, `x`, brackets) is used as it is. You can edit the
+pattern freely, for example to change `x` into `S…E…`.
+
+It also learns, and lets you change:
+
+- **Words separated by**: spaces, dots, underscores or hyphens.
+- **Capitalisation**: as in each file, Title Case, lowercase or UPPERCASE. With Title Case, *Keep small
+  words lowercase* writes "Two Days of the Condor" rather than "Two Days Of The Condor". Words that
+  are already mixed case ("RussFest") or acronyms ("NASA") are kept.
+- **Show name** and **Year**: leave empty to take them from each file, or type them to use the same
+  value for every file (handy when files use an abbreviation, or have no year).
+
+### 3. Check the names
+
+Every file gets a row with the name it will get. You can **type over any name**; a typed name is
+kept when you change the style, and the ↶ button brings the styled name back.
+
+| Status | Meaning |
+|---|---|
+| **Ready** (green) | Everything the pattern needs was found in the file's name. |
+| **No episode title** / **No year** (amber) | That part isn't in the file's name, so it was left out together with its separator (`Show - 02x01`). Type it in, or leave it. |
+| **No episode number** / **No name** | The file's name doesn't say which episode it is, so the file is left as it is. Type a name to rename it anyway. |
+| **Used twice** (red) | Two files in the same folder would get the same name. |
+| **Edited** | You typed this name. |
+| **Same name** | The file already has this name. |
+
+Release details (`1080p`, `x265`, `WEB-DL`, `REPACK`, group tags) are never mistaken for part of a
+title. Only what is in each file's name can be used: Proteus doesn't look titles up online. If the
+episode titles are in your media library, [Match names from a folder](#match-names-from-a-folder)
+copies them exactly.
+
+### 4. Use the names
+
+Press **Use … names**. As with matching from a folder, this adds a **List of names** rule (and can
+turn your other rules off), and you rename from the normal preview.
 
 ## Import a rename list
 

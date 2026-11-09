@@ -26,6 +26,9 @@ public interface IUiServices
 
     /// <summary>Shows the "Match names from a folder" window; true when the user chose to use the names.</summary>
     Task<bool> ShowMatchFolderAsync(MatchFolderViewModel vm) => Task.FromResult(false);
+
+    /// <summary>Shows the "Match a naming style" window; true when the user chose to use the names.</summary>
+    Task<bool> ShowMatchStyleAsync(MatchStyleViewModel vm) => Task.FromResult(false);
 }
 
 public sealed partial class MainViewModel : ObservableObject
@@ -855,11 +858,26 @@ public sealed partial class MainViewModel : ObservableObject
         ApplyNameMatches(match.ChosenPairs(), match.TurnOffOtherRules);
     }
 
+    [RelayCommand]
+    private async Task MatchStyleAsync()
+    {
+        if (Ui == null) return;
+        var files = _all.Where(f => !f.Entry.IsFolder).Select(f => f.Entry).ToList();
+        if (files.Count == 0)
+        {
+            ShowNotice("Add the files you want to rename first, then show Proteus a few names in the style you want.", isError: true);
+            return;
+        }
+        var style = new MatchStyleViewModel(files, Ui, Rules.Any(r => r.IsEnabled));
+        if (!await Ui.ShowMatchStyleAsync(style)) return;
+        ApplyNameMatches(style.ChosenPairs(), style.TurnOffOtherRules, "in the new style");
+    }
+
     /// <summary>
     /// Adds a mapping rule that gives each file (by full path) its new name, keeping the file's extension.
     /// Optionally turns the other rules off so the names come out exactly as given.
     /// </summary>
-    public void ApplyNameMatches(IReadOnlyList<(string Path, string NewBaseName)> pairs, bool turnOffOtherRules)
+    public void ApplyNameMatches(IReadOnlyList<(string Path, string NewBaseName)> pairs, bool turnOffOtherRules, string? how = null)
     {
         if (pairs.Count == 0) return;
         var lines = new System.Text.StringBuilder();
@@ -875,7 +893,10 @@ public sealed partial class MainViewModel : ObservableObject
         Rules.Add(rule);
         SelectedRule = rule;
         var note = disabled > 0 ? $" Turned off {disabled:N0} other rule{(disabled == 1 ? "" : "s")} so the names match exactly." : "";
-        ShowNotice($"Matched {pairs.Count:N0} file{(pairs.Count == 1 ? "" : "s")} to names from the folder. Check the preview, then rename.{note}");
+        var what = how == null
+            ? $"Matched {pairs.Count:N0} file{(pairs.Count == 1 ? "" : "s")} to names from the folder."
+            : $"Named {pairs.Count:N0} file{(pairs.Count == 1 ? "" : "s")} {how}.";
+        ShowNotice($"{what} Check the preview, then rename.{note}");
     }
 
     [RelayCommand]
