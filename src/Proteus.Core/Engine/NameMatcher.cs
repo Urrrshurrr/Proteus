@@ -49,7 +49,7 @@ public static class NameMatcher
     internal static readonly Regex SxE = new(
         @"(?<![a-z0-9])s(?<s>\d{1,3})[ ._-]?e(?<e>\d{1,4})(?:(?:(?:[ ._]?-[ ._]?)?e|-)(?<e2>\d{1,4})(?![\dp]))?", Opts, Timeout);
     // 1x03, 01x03
-    internal static readonly Regex NxN = new(@"(?<![\da-z])(?<s>\d{1,2})x(?<e>\d{2,3})(?!\d)", Opts, Timeout);
+    internal static readonly Regex NxN = new(@"(?<![\da-z])(?<s>\d{1,2}) ?x ?(?<e>\d{2,3})(?!\d)", Opts, Timeout);
     // Season 1 Episode 3
     internal static readonly Regex SeasonWords = new(@"season[ ._-]*(?<s>\d{1,3})[^a-z0-9]{0,5}(?:episode|ep)[ ._-]*(?<e>\d{1,4})", Opts, Timeout);
     // Episode 3, Ep 03, E03 (no season)

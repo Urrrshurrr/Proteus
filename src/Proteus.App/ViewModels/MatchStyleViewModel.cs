@@ -15,6 +15,9 @@ public sealed partial class MatchStyleViewModel : ObservableObject
     private readonly IUiServices? _ui;
     private readonly IReadOnlyList<FileEntry> _files;
     private bool _learning;
+    private Dictionary<(int, int, int), List<ParsedName>> _sampleIndex = new();
+    // Show names as the samples write them ("Grey's Anatomy"), by their letters only ("greysanatomy").
+    private Dictionary<string, string> _sampleShows = new(StringComparer.Ordinal);
 
     public MatchStyleViewModel(IReadOnlyList<FileEntry> files, IUiServices? ui, bool hasOtherRules)
     {
@@ -53,6 +56,9 @@ public sealed partial class MatchStyleViewModel : ObservableObject
 
     public static string FieldHelp { get; } = string.Join("   ", NameStyle.Fields.Select(f => f.Token));
 
+    /// <summary>The fields as buttons that insert themselves into the pattern.</summary>
+    public static IReadOnlyList<Option<string>> FieldTokens { get; } = NameStyle.Fields.Select(f => new Option<string>(f.Token, f.Meaning)).ToList();
+
     public ObservableCollection<StyleRowViewModel> Rows { get; } = [];
 
     [ObservableProperty] private string _samples = string.Empty;
@@ -63,6 +69,9 @@ public sealed partial class MatchStyleViewModel : ObservableObject
     [ObservableProperty] private string _showOverride = string.Empty;
     [ObservableProperty] private string _yearOverride = string.Empty;
     [ObservableProperty] private bool _turnOffOtherRules = true;
+    /// <summary>Use the exact show name and title of a sample that is the same episode (e.g. from your media library).</summary>
+    [ObservableProperty] private bool _useSampleTitles = true;
+    [ObservableProperty] private int _sampleEpisodeCount;
     [ObservableProperty] private string _learnSummary = "Add a few names in the style you want: pick sample files, a folder, or type them in.";
     [ObservableProperty] private bool _learnFailed;
 
@@ -80,10 +89,11 @@ public sealed partial class MatchStyleViewModel : ObservableObject
         {
             if (!HasTemplate) return string.Empty;
             int ready = Rows.Count(r => r.IsReady && !r.IsUnchanged);
+            int fromSamples = Rows.Count(r => r.IsReady && !r.IsUnchanged && r.IsFromSample);
             int partial = Rows.Count(r => r.IsPartial);
             int blocked = Rows.Count(r => r.IsIncluded && !r.IsEdited && r.IsBlocked);
             int same = Rows.Count(r => r.IsUnchanged && !r.IsBlocked);
-            var parts = new List<string> { $"{ready:N0} ready" };
+            var parts = new List<string> { fromSamples > 0 ? $"{ready:N0} ready ({fromSamples:N0} with the exact title from a sample)" : $"{ready:N0} ready" };
             if (partial > 0) parts.Add($"{partial:N0} missing a part (amber: type it into the name, or untick the row)");
             if (blocked > 0) parts.Add($"{blocked:N0} left alone because no episode number or name was found");
             if (same > 0) parts.Add($"{same:N0} already in this style");
@@ -101,6 +111,10 @@ public sealed partial class MatchStyleViewModel : ObservableObject
     partial void OnSmallWordsLowerChanged(bool value) => Render();
     partial void OnShowOverrideChanged(string value) => Render();
     partial void OnYearOverrideChanged(string value) => Render();
+    partial void OnUseSampleTitlesChanged(bool value) => Render();
+
+    public bool HasSampleEpisodes => SampleEpisodeCount > 0;
+    partial void OnSampleEpisodeCountChanged(int value) => OnPropertyChanged(nameof(HasSampleEpisodes));
 
     [RelayCommand]
     private async Task AddSampleFilesAsync()
@@ -118,8 +132,8 @@ public sealed partial class MatchStyleViewModel : ObservableObject
         if (folder == null) return;
         var filter = MatchFolderViewModel.DefaultFilter(_files);
         var names = await Task.Run(() => MatchFolderViewModel.ReadReferenceNames(folder, filter, recurse: true));
-        // A handful is plenty to learn from; a whole library would only slow the box down.
-        AppendSamples(names.Take(40));
+        // Every name is kept: the more episodes there are, the more files can take their exact titles from them.
+        AppendSamples(names);
     }
 
     public void AppendSamples(IEnumerable<string> names)
@@ -136,6 +150,14 @@ public sealed partial class MatchStyleViewModel : ObservableObject
     private void Learn()
     {
         var lines = Samples.Replace("\r\n", "\n").Split('\n').Select(StripExtension).Where(l => l.Length > 0).ToList();
+        var parsedSamples = lines.Select(NameStyle.Parse).ToList();
+        _sampleIndex = parsedSamples.Where(p => p.Episode != null && p.TitleText.Length > 0)
+            .GroupBy(p => (p.Episode!.Value.Season, p.Episode.Value.Episode, p.Episode.Value.LastEpisode))
+            .ToDictionary(g => g.Key, g => g.ToList());
+        SampleEpisodeCount = _sampleIndex.Values.Sum(v => v.Count);
+        _sampleShows = parsedSamples.Where(p => p.ShowText.Length > 0)
+            .GroupBy(p => NameStyle.ShowKey(p.ShowText)).Where(g => g.Key.Length > 0)
+            .ToDictionary(g => g.Key, g => g.GroupBy(p => p.ShowText).OrderByDescending(x => x.Count()).First().Key, StringComparer.Ordinal);
         var style = NameStyle.Learn(lines);
         if (style == null)
         {
@@ -180,8 +202,16 @@ public sealed partial class MatchStyleViewModel : ObservableObject
         foreach (var r in Rows)
         {
             if (template.Length == 0) { r.SetStyled(null); continue; }
+            ParsedName? same = null;
+            if (UseSampleTitles && r.Parsed.Episode is { } k && _sampleIndex.TryGetValue((k.Season, k.Episode, k.LastEpisode), out var candidates))
+                same = NameStyle.FindSameEpisode(r.Parsed, candidates);
+            // The same show in the samples: write its name the way they do, even for episodes they don't have.
+            string? show = ShowOverride;
+            if (string.IsNullOrWhiteSpace(show) && UseSampleTitles && Separator?.Value is null or " "
+                && _sampleShows.TryGetValue(NameStyle.ShowKey(r.Parsed.ShowText), out var sampleShow))
+                show = sampleShow;
             r.SetStyled(NameStyle.Apply(template, r.Parsed, Separator?.Value ?? " ", Case?.Value ?? WordCase.AsIs, SmallWordsLower,
-                ShowOverride, YearOverride));
+                show, YearOverride, same));
         }
         UpdateDuplicates();
         RaiseApply();
@@ -264,6 +294,12 @@ public sealed partial class StyleRowViewModel : ObservableObject
 
     public bool IsComplete => _styled?.IsComplete ?? false;
 
+    /// <summary>The show name and title came from a sample of the same episode.</summary>
+    public bool IsFromSample => !IsEdited && _styled is { FromSample: true };
+
+    /// <summary>What was read from this file's name, shown as a tooltip.</summary>
+    public string ReadTip => Entry.Directory + Environment.NewLine + Parsed.Describe();
+
     /// <summary>Without its episode number or name a styled name would be misleading, so the file is left alone.</summary>
     public bool IsBlocked => _styled != null && _styled.Missing.Any(m => m is "episode number" or "name");
     public bool IsUnchanged => string.Equals(NewBaseName.Trim(), Entry.BaseName, StringComparison.Ordinal);
@@ -280,7 +316,8 @@ public sealed partial class StyleRowViewModel : ObservableObject
             if (IsUnchanged) return "Same name";
             if (IsEdited) return "Edited";
             if (_styled == null) return "—";
-            return IsComplete ? "Ready" : "No " + _styled.Missing[0];
+            if (IsComplete) return _styled.FromSample ? "From sample" : "Ready";
+            return "No " + _styled.Missing[0];
         }
     }
 
@@ -290,6 +327,7 @@ public sealed partial class StyleRowViewModel : ObservableObject
         "Same name" => "This file already has this name, so it is left alone.",
         "Edited" => "You changed this name by hand. Style changes no longer touch it.",
         "Ready" => "Everything the style needs was found in the file's name.",
+        "From sample" => "A sample is the same episode of the same show, so its show name and episode title are used exactly as written there.",
         "Skipped" => "This file is left as it is.",
         "No episode number" => "No season or episode number was found in this file's name, so it is left as it is. Type a name to rename it anyway.",
         "No name" => "No show or film name was found in this file's name. Type it under “Show name”, or type the whole name here.",

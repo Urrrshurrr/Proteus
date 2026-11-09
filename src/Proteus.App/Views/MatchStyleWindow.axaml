@@ -69,17 +69,27 @@
         <StackPanel Orientation="Horizontal" Spacing="6">
           <Button Classes="soft" Command="{Binding AddSampleFilesCommand}" AutomationProperties.Name="Add sample files">Add sample files…</Button>
           <Button Classes="soft" Command="{Binding AddSampleFolderCommand}" AutomationProperties.Name="Add samples from a folder"
-                  ToolTip.Tip="Reads up to 40 names from a folder and its subfolders, e.g. a show in your media library">Add from a folder…</Button>
+                  ToolTip.Tip="Reads every episode name in a folder and its subfolders, e.g. a show in your media library. Episodes found there also lend their exact titles.">Add from a folder…</Button>
           <Button Classes="ghost" Command="{Binding ClearSamplesCommand}">Clear</Button>
         </StackPanel>
       </StackPanel>
 
       <StackPanel Grid.Column="2" Spacing="6">
         <TextBlock Classes="label" Text="Pattern (learned from the samples; you can edit it)" />
-        <TextBox Classes="mono" Text="{Binding Template}" AutomationProperties.Name="Pattern"
+        <TextBox x:Name="TemplateBox" Classes="mono" Text="{Binding Template}" AutomationProperties.Name="Pattern"
                  PlaceholderText="&lt;show&gt; - &lt;season:00&gt;x&lt;episode:00&gt; - &lt;title&gt;" />
-        <TextBlock Classes="faint" FontSize="11" TextWrapping="Wrap" Text="{x:Static vm:MatchStyleViewModel.FieldHelp}"
-                   FontFamily="{StaticResource MonoFont}" />
+        <ItemsControl ItemsSource="{x:Static vm:MatchStyleViewModel.FieldTokens}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Button Classes="ghost" Padding="6,2" Margin="0,0,4,4" FontSize="11" FontFamily="{StaticResource MonoFont}"
+                      Content="{ReflectionBinding Value}" ToolTip.Tip="{ReflectionBinding Label}" Tag="{ReflectionBinding Value}"
+                      Click="OnFieldClick" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
         <TextBlock FontSize="12" TextWrapping="Wrap" Text="{Binding LearnSummary}" Classes="muted" Classes.failed="{Binding LearnFailed}" />
         <Grid ColumnDefinitions="*,8,*" RowDefinitions="Auto,Auto,6,Auto,Auto">
           <TextBlock Classes="label" Text="Words separated by" />
@@ -101,6 +111,9 @@
     <!-- Options -->
     <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="18" Margin="0,12,0,10">
       <CheckBox Content="Keep small words (of, the, and…) lowercase" IsChecked="{Binding SmallWordsLower}" />
+      <CheckBox Content="Take show names and exact titles from the samples" IsChecked="{Binding UseSampleTitles}"
+                IsVisible="{Binding HasSampleEpisodes}"
+                ToolTip.Tip="Show names are written the way the samples write them. When a sample is the same season and episode of the same show, its title is used exactly as written too, apostrophes and all." />
       <CheckBox Content="Turn off my other rules so names match exactly" IsChecked="{Binding TurnOffOtherRules}"
                 IsVisible="{Binding HasOtherRules}" />
     </StackPanel>
@@ -119,7 +132,7 @@
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:StyleRowViewModel">
                 <Grid ColumnDefinitions="40,*,28,*,150" MinHeight="40" Classes="srow" Classes.off="{Binding !IsIncluded}"
-                      ToolTip.Tip="{Binding Folder}">
+                      ToolTip.Tip="{Binding ReadTip}">
                   <CheckBox IsChecked="{Binding IsIncluded}" HorizontalAlignment="Center" VerticalAlignment="Center" MinHeight="0" Padding="0"
                             AutomationProperties.Name="Rename this file" />
                   <TextBlock Grid.Column="1" Classes="cur" Text="{Binding CurrentName}" VerticalAlignment="Center"
@@ -150,7 +163,7 @@
     <!-- Buttons -->
     <Grid Grid.Row="4" ColumnDefinitions="*,Auto" Margin="0,14,0,0">
       <TextBlock Classes="faint" FontSize="11.5" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0"
-                 Text="Only what is in each file's name can be used. A missing episode title can be typed in, or taken from your library with Match names from a folder. The names become a List of names rule, so you still get the preview and can undo." />
+                 Text="Names are rebuilt from what each file's name contains, or from a sample of the same episode. Hover a row to see what was read from it. A missing title can be typed in. The names become a List of names rule, so you still get the preview and can undo." />
       <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
         <Button Classes="soft" Command="{Binding CancelCommand}" Padding="16,8" IsCancel="True">Cancel</Button>
         <Button Classes="primary" Command="{Binding ApplyCommand}" IsEnabled="{Binding CanApply}" Padding="18,8"

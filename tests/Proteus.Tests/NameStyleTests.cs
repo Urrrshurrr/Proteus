@@ -131,4 +131,65 @@ public class NameStyleTests
         var r = NameStyle.Apply("<show> - <season:00>x<episode:00>", NameStyle.Parse("SV.S01E01.720p"), showOverride: "Silicon Valley");
         Assert.Equal("Silicon Valley - 01x01", r.Name);
     }
+
+    private static readonly string[] SteveLibrary =
+    [
+        "Grey's Anatomy - 01x01 - A Hard Day's Night",
+        "Matlock - 01x02 - Rome, in a Day",
+        "Star Trek Voyager - 01x01 - Caretaker (1)",
+        "Robin Hood (2025) - 01x01 - I See Him",
+    ];
+
+    [Theory]
+    [InlineData("Matlock (2024) - S01E02 - Rome, in a Day [WEBDL-1080p]", "Matlock - 01x02 - Rome, in a Day")]
+    [InlineData("Star Trek Voyager - 1x01 - Caretaker (1)", "Star Trek Voyager - 01x01 - Caretaker (1)")]
+    [InlineData("The Office (US) - S02E01 - The Dundies", "The Office (US) - 02x01 - The Dundies")]
+    [InlineData("Prey - 01 x 02 - Episode 2", "Prey - 01x02 - Episode 2")]
+    [InlineData("[SubsPlease] Frieren - 05 (1080p) [A1B2C3D4]", "Frieren - 05")]
+    [InlineData("Key.and.Peele.S01E01.Series.Premiere.720p", "Key and Peele - 01x01 - Series Premiere")]
+    [InlineData("Charlotte's.Web.2006.1080p.BluRay", "Charlotte's Web")]
+    public void Keeps_punctuation_and_reads_more_numbering(string source, string expected)
+    {
+        var style = NameStyle.Learn(SteveLibrary)!;
+        Assert.Equal("<show> - <season:00>x<episode:00> - <title>", style.Template);
+        var r = NameStyle.Apply(style.Template, NameStyle.Parse(source), style.WordSeparator, style.Case, style.SmallWordsLower);
+        Assert.Equal(expected, r.Name);
+    }
+
+    [Theory]
+    [InlineData("<show> (<year>) - S<season:00>E<episode:00> - <title>", "Frieren - E05")]
+    [InlineData("<show> - <season:00> x <episode:00>", "Frieren - 05")]
+    [InlineData("<show>.s<season:00>e<episode:00>", "Frieren.e05")]
+    public void Drops_the_letters_of_a_missing_season(string template, string expected)
+    {
+        var r = NameStyle.Apply(template, NameStyle.Parse("[SubsPlease] Frieren - 05 (1080p) [A1B2C3D4]"));
+        Assert.Equal(expected, r.Name);
+    }
+
+    [Fact]
+    public void Title_case_leaves_small_words_alone_without_evidence()
+    {
+        var r = NameStyle.Apply("<show> - <title>", NameStyle.Parse("matlock s01e02 rome in a day"), wordCase: WordCase.Title, smallWordsLower: false);
+        Assert.Equal("Matlock - Rome in a Day", r.Name);
+    }
+
+    [Fact]
+    public void Exact_titles_come_from_a_sample_of_the_same_episode()
+    {
+        using var dir = new TempDir();
+        var a = new Proteus.Core.Models.FileEntry(dir.File("Greys.Anatomy.S01E01.A.Hard.Days.Night.1080p.WEB.mkv"));
+        var b = new Proteus.Core.Models.FileEntry(dir.File("Greys.Anatomy.S01E02.The.First.Cut.Is.the.Deepest.1080p.mkv"));
+        var vm = new Proteus.App.ViewModels.MatchStyleViewModel([a, b], null, hasOtherRules: false);
+        vm.AppendSamples(["Grey's Anatomy - 01x01 - A Hard Day's Night", "Matlock - 01x02 - Rome, in a Day"]);
+
+        Assert.Equal("Grey's Anatomy - 01x01 - A Hard Day's Night", vm.Rows[0].NewBaseName);
+        Assert.Equal("From sample", vm.Rows[0].Status);
+        // No sample for this episode (and Matlock 01x02 is another show): the title comes from the file's own name,
+        // but the show is written the way the samples write it.
+        Assert.Equal("Grey's Anatomy - 01x02 - The First Cut Is the Deepest", vm.Rows[1].NewBaseName);
+        Assert.Equal("Ready", vm.Rows[1].Status);
+
+        vm.UseSampleTitles = false;
+        Assert.Equal("Greys Anatomy - 01x01 - A Hard Days Night", vm.Rows[0].NewBaseName);
+    }
 }

@@ -98,9 +98,12 @@ Proteus a few names written that way, and it rebuilds every file in your list in
 `...` → **Match a naming style…**. In *Sample names*, add two or three names in the style you want:
 
 - **Add sample files…** picks files (only their names are used),
-- **Add from a folder…** reads up to 40 names from a folder and its subfolders, such as a show
+- **Add from a folder…** reads every episode name in a folder and its subfolders, such as a show
   already in your media library, or
 - type or paste names, one per line. Extensions are ignored.
+
+Leading release-group tags (`[SubsPlease] Show - 05`) are skipped, and these numbering styles are
+understood: `S01E03`, `1x03`, `01 x 03`, `Season 1 Episode 3`, `Episode 3` and anime-style ` - 05`.
 
 ### 2. Check the pattern
 
@@ -120,14 +123,18 @@ Proteus works out the pattern and shows it, for example:
 | `<quality>` | Resolution, e.g. `1080p` |
 
 Everything else in the pattern (`" - "`, `S`, `E`, `x`, brackets) is used as it is. You can edit the
-pattern freely, for example to change `x` into `S…E…`.
+pattern freely, for example to change `x` into `S…E…`. Click a field under the pattern to insert it
+where the cursor is.
 
 It also learns, and lets you change:
 
 - **Words separated by**: spaces, dots, underscores or hyphens.
 - **Capitalisation**: as in each file, Title Case, lowercase or UPPERCASE. With Title Case, *Keep small
-  words lowercase* writes "Two Days of the Condor" rather than "Two Days Of The Condor". Words that
-  are already mixed case ("RussFest") or acronyms ("NASA") are kept.
+  words lowercase* writes "Two Days of the Condor" rather than "Two Days Of The Condor"; with it off,
+  small words are left as each file has them. Words that are already mixed case ("RussFest") or
+  acronyms ("NASA") are kept.
+- **Punctuation** in show names and titles is kept when words are separated by spaces:
+  `Rome, in a Day`, `Caretaker (1)`, `The Office (US)`. Dotted and underscored styles keep the words only.
 - **Show name** and **Year**: leave empty to take them from each file, or type them to use the same
   value for every file (handy when files use an abbreviation, or have no year).
 
@@ -139,6 +146,7 @@ kept when you change the style, and the ↶ button brings the styled name back.
 | Status | Meaning |
 |---|---|
 | **Ready** (green) | Everything the pattern needs was found in the file's name. |
+| **From sample** (green) | A sample is the same episode of the same show, so its title was copied exactly. |
 | **No episode title** / **No year** (amber) | That part isn't in the file's name, so it was left out together with its separator (`Show - 02x01`). Type it in, or leave it. |
 | **No episode number** / **No name** | The file's name doesn't say which episode it is, so the file is left as it is. Type a name to rename it anyway. |
 | **Used twice** (red) | Two files in the same folder would get the same name. |
@@ -146,9 +154,16 @@ kept when you change the style, and the ↶ button brings the styled name back.
 | **Same name** | The file already has this name. |
 
 Release details (`1080p`, `x265`, `WEB-DL`, `REPACK`, group tags) are never mistaken for part of a
-title. Only what is in each file's name can be used: Proteus doesn't look titles up online. If the
-episode titles are in your media library, [Match names from a folder](#match-names-from-a-folder)
-copies them exactly.
+title. Hover a row to see what Proteus read from the file's name (show, year, episode, title).
+
+**Exact names from your library.** With *Take show names and exact titles from the samples* on,
+a show that appears in the samples is written the way they write it (`Greys.Anatomy` →
+`Grey's Anatomy`), and when a sample is the same season and episode, its title is copied exactly
+too, apostrophes and all (`Greys.Anatomy.S01E01.A.Hard.Days.Night` →
+`Grey's Anatomy - 01x01 - A Hard Day's Night`). So adding the whole show from your library with
+**Add from a folder…** gives you the style and the official titles in one go. Episodes the samples
+don't have still take their title from their own names. Proteus doesn't look titles up online. To match every file to an existing
+name, use [Match names from a folder](#match-names-from-a-folder).
 
 ### 4. Use the names
 
