@@ -9,7 +9,7 @@
     <RootNamespace>Proteus.App</RootNamespace>
     <AssemblyName>Proteus</AssemblyName>
     <Product>Proteus - File Renamer</Product>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <ApplicationIcon>Assets\proteus.ico</ApplicationIcon>
