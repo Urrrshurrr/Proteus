@@ -1,0 +1,755 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Proteus.App.ViewModels"
+        xmlns:rules="using:Proteus.Core.Rules"
+        xmlns:engine="using:Proteus.Core.Engine"
+        xmlns:conv="using:Proteus.App.Converters"
+        xmlns:ctl="using:Proteus.App.Controls"
+        xmlns:views="using:Proteus.App.Views"
+        xmlns:chrome="using:Avalonia.Controls.Chrome"
+        x:Class="Proteus.App.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        x:Name="Root"
+        Title="Proteus - File Renamer"
+        Icon="/Assets/proteus.ico"
+        Width="1360" Height="840" MinWidth="1000" MinHeight="620"
+        WindowStartupLocation="CenterScreen"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="46"
+        TransparencyLevelHint="Mica, AcrylicBlur, None"
+        Background="{DynamicResource WindowBrush}">
+
+  <Window.DataTemplates>
+    <DataTemplate DataType="engine:TimestampSetting">
+      <StackPanel Spacing="8">
+        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{x:Static vm:Ui.TimeSources}"
+                  SelectedValue="{Binding Source}" SelectedValueBinding="{ReflectionBinding Value}"
+                  DisplayMemberBinding="{ReflectionBinding Label}" />
+        <Grid ColumnDefinitions="*,8,*" IsVisible="{Binding Source, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static engine:TimeSource.Fixed}}">
+          <CalendarDatePicker SelectedDate="{Binding FixedDate, Converter={x:Static vm:Ui.DateOffsetToDate}}" HorizontalAlignment="Stretch" />
+          <TimePicker Grid.Column="2" SelectedTime="{Binding FixedTime}" ClockIdentifier="24HourClock" HorizontalAlignment="Stretch" MinWidth="0" />
+        </Grid>
+        <StackPanel IsVisible="{Binding Source, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static engine:TimeSource.FromName}}">
+          <TextBox Classes="mono" Text="{Binding NameFormat}" Watermark="yyyyMMdd_HHmmss; yyyy-MM-dd" AutomationProperties.Name="Date pattern in name" />
+          <TextBlock Classes="faint" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap" Text="How the date is written in the name, e.g. IMG_20240131_093000 is yyyyMMdd_HHmmss." />
+        </StackPanel>
+        <Grid ColumnDefinitions="Auto,8,120" IsVisible="{Binding IsActive}">
+          <TextBlock Classes="muted" FontSize="12" Text="Then shift by (minutes, ±)" VerticalAlignment="Center" />
+          <NumericUpDown Grid.Column="2" Value="{Binding OffsetMinutes}" Minimum="-5256000" Maximum="5256000" Increment="60" FormatString="0" />
+        </Grid>
+      </StackPanel>
+    </DataTemplate>
+  </Window.DataTemplates>
+
+  <Window.Styles>
+    <!-- Status pills -->
+    <Style Selector="Border.status">
+      <Setter Property="CornerRadius" Value="999" />
+      <Setter Property="Padding" Value="9,2" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+    </Style>
+    <Style Selector="Border.status TextBlock">
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+    </Style>
+    <Style Selector="Border.status.ok">
+      <Setter Property="Background" Value="{DynamicResource SuccessSoftBrush}" />
+    </Style>
+    <Style Selector="Border.status.ok TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+    </Style>
+    <Style Selector="Border.status.conflict">
+      <Setter Property="Background" Value="{DynamicResource WarningSoftBrush}" />
+    </Style>
+    <Style Selector="Border.status.conflict TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+    </Style>
+    <Style Selector="Border.status.invalid">
+      <Setter Property="Background" Value="{DynamicResource DangerSoftBrush}" />
+    </Style>
+    <Style Selector="Border.status.invalid TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+    </Style>
+
+    <Style Selector="Grid.row.unchanged ctl|DiffTextBlock.newname">
+      <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+    </Style>
+    <Style Selector="Grid.row.excluded">
+      <Setter Property="Opacity" Value="0.45" />
+    </Style>
+    <Style Selector="Grid.rule.off">
+      <Setter Property="Opacity" Value="0.45" />
+    </Style>
+
+    <Style Selector="Button.chipbtn">
+      <Setter Property="Padding" Value="12,9" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusMedium}" />
+    </Style>
+    <Style Selector="Button.chipbtn.active">
+      <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.moving">
+      <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
+    </Style>
+    <Style Selector="Border#NoticeBar.error">
+      <Setter Property="Background" Value="{DynamicResource DangerSoftBrush}" />
+    </Style>
+    <Style Selector="Border#ListCard.dragging">
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+
+    <Style Selector="Button.colhead">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.colhead:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+
+    <Style Selector="ToggleButton.filter">
+      <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource StrokeBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusSmall}" />
+      <Setter Property="Padding" Value="10,6" />
+      <Setter Property="FontSize" Value="12.5" />
+    </Style>
+    <Style Selector="ToggleButton.filter:checked /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
+    </Style>
+
+    <Style Selector="Expander">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0,10,0,0" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="46,*,Auto">
+
+    <!-- ============ Title bar ============ -->
+    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Background="Transparent"
+          chrome:WindowDecorationProperties.ElementRole="TitleBar">
+      <StackPanel Orientation="Horizontal" Spacing="10" Margin="16,0,0,0" VerticalAlignment="Center">
+        <Image Source="/Assets/logo.png" Width="20" Height="20" />
+        <TextBlock Text="Proteus" FontFamily="{StaticResource DisplayFont}" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
+        <TextBlock Text="File Renamer" Classes="faint" FontSize="13" VerticalAlignment="Center" />
+      </StackPanel>
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" Margin="0,0,150,0" VerticalAlignment="Center"
+                  chrome:WindowDecorationProperties.ElementRole="User">
+        <Button Classes="ghost" Command="{Binding ToggleHistoryCommand}" AutomationProperties.Name="Rename history and undo" ToolTip.Tip="Rename history and undo">
+          <StackPanel Orientation="Horizontal" Spacing="7">
+            <TextBlock Classes="icon" Text="&#xE81C;" FontSize="13" />
+            <TextBlock Text="History" FontSize="12.5" />
+          </StackPanel>
+        </Button>
+        <Button Classes="ghost iconbtn" Command="{Binding ToggleThemeCommand}" AutomationProperties.Name="Switch light / dark" ToolTip.Tip="Switch light / dark">
+          <Panel>
+            <TextBlock Classes="icon" Text="&#xE706;" IsVisible="{Binding IsDark}" />
+            <TextBlock Classes="icon" Text="&#xE708;" IsVisible="{Binding !IsDark}" />
+          </Panel>
+        </Button>
+      </StackPanel>
+    </Grid>
+
+    <!-- ============ Main area ============ -->
+    <Grid Grid.Row="1" ColumnDefinitions="*,12,410" Margin="12,0,12,0">
+
+      <!-- ===== File list card ===== -->
+      <Border x:Name="ListCard" Classes="card" DragDrop.AllowDrop="True">
+        <Grid RowDefinitions="Auto,Auto,*">
+
+          <!-- Toolbar -->
+          <Grid ColumnDefinitions="Auto,*,Auto" Margin="12,12,12,10">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Button Classes="soft" Command="{Binding AddFilesCommand}" AutomationProperties.Name="Add files (Ctrl+O)" ToolTip.Tip="Add files (Ctrl+O)">
+                <StackPanel Orientation="Horizontal" Spacing="7">
+                  <TextBlock Classes="icon" Text="&#xE8A5;" FontSize="13" />
+                  <TextBlock Text="Add files" />
+                </StackPanel>
+              </Button>
+              <Button Classes="soft" Command="{Binding AddFolderCommand}" AutomationProperties.Name="Add every file in a folder" ToolTip.Tip="Add every file in a folder">
+                <StackPanel Orientation="Horizontal" Spacing="7">
+                  <TextBlock Classes="icon" Text="&#xE838;" FontSize="13" />
+                  <TextBlock Text="Add folder" />
+                </StackPanel>
+              </Button>
+              <Button x:Name="ListMenuButton" Classes="ghost iconbtn" AutomationProperties.Name="List options" ToolTip.Tip="Adding options, selection, CSV import and export">
+                <TextBlock Classes="icon" Text="&#xE712;" />
+                <Button.Flyout>
+                  <Flyout Placement="BottomEdgeAlignedLeft">
+                    <StackPanel Spacing="4" Width="260">
+                      <TextBlock Classes="section" Text="WHEN ADDING FOLDERS" Margin="0,0,0,4" />
+                      <CheckBox Content="Include files in subfolders" IsChecked="{Binding IncludeSubfolders}" />
+                      <CheckBox Content="Add folders themselves, to rename them" IsChecked="{Binding AddFoldersAsItems}" />
+                      <Separator Margin="0,6" />
+                      <TextBlock Classes="section" Text="SELECTION" Margin="0,0,0,4" />
+                      <Button Classes="ghost" Content="Include all" Command="{Binding IncludeAllCommand}" CommandParameter="all" HorizontalAlignment="Stretch" />
+                      <Button Classes="ghost" Content="Include none" Command="{Binding IncludeAllCommand}" CommandParameter="none" HorizontalAlignment="Stretch" />
+                      <Button Classes="ghost" Content="Invert" Command="{Binding IncludeAllCommand}" CommandParameter="invert" HorizontalAlignment="Stretch" />
+                      <Separator Margin="0,6" />
+                      <CheckBox Content="Highlight changed characters" IsChecked="{Binding HighlightChanges}" />
+                      <Separator Margin="0,6" />
+                      <TextBlock Classes="section" Text="CSV" Margin="0,0,0,4" />
+                      <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="OnFlyoutButtonClick"
+                              Command="{Binding ImportCsvCommand}" AutomationProperties.Name="Import rename list">Import a rename list (CSV)…</Button>
+                      <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="OnFlyoutButtonClick"
+                              Command="{Binding ExportCsvCommand}" AutomationProperties.Name="Export preview">Export the preview to CSV…</Button>
+                    </StackPanel>
+                  </Flyout>
+                </Button.Flyout>
+              </Button>
+              <Rectangle Width="1" Height="20" Fill="{DynamicResource StrokeBrush}" Margin="4,0" />
+              <Button Classes="ghost iconbtn danger" Click="OnRemoveSelected" AutomationProperties.Name="Remove selected from the list (Del)" ToolTip.Tip="Remove selected from the list (Del)">
+                <TextBlock Classes="icon" Text="&#xE738;" />
+              </Button>
+              <Button Classes="ghost iconbtn danger" Command="{Binding ClearFilesCommand}" AutomationProperties.Name="Clear the list" ToolTip.Tip="Clear the list">
+                <TextBlock Classes="icon" Text="&#xE74D;" />
+              </Button>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+              <ToggleButton Classes="filter" IsChecked="{Binding ShowOnlyChanged}" AutomationProperties.Name="Show only items that will change" ToolTip.Tip="Show only items that will change">
+                <TextBlock Text="Changes only" />
+              </ToggleButton>
+              <TextBox Width="230" AutomationProperties.Name="Filter" Text="{Binding FilterText}" Watermark="Filter by name" MinHeight="32">
+                <TextBox.InnerLeftContent>
+                  <TextBlock Classes="icon faint" Text="&#xE721;" FontSize="12" Margin="10,0,2,0" />
+                </TextBox.InnerLeftContent>
+              </TextBox>
+            </StackPanel>
+          </Grid>
+
+          <!-- Column headers -->
+          <Border Grid.Row="1" BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="0,1,0,1" Padding="6,0" Height="32">
+            <Grid ColumnDefinitions="40,*,28,*,96,170" Margin="0,0,0,0">
+              <Button Grid.Column="1" Classes="colhead" Command="{Binding SortByCommand}" CommandParameter="{x:Static vm:SortColumn.Original}" Margin="28,0,0,0">CURRENT NAME</Button>
+              <Button Grid.Column="3" Classes="colhead" Command="{Binding SortByCommand}" CommandParameter="{x:Static vm:SortColumn.New}" Margin="4,0,0,0">NEW NAME</Button>
+              <Button Grid.Column="4" Classes="colhead" Command="{Binding SortByCommand}" CommandParameter="{x:Static vm:SortColumn.Status}">STATUS</Button>
+              <Button Grid.Column="5" Classes="colhead" Command="{Binding SortByCommand}" CommandParameter="{x:Static vm:SortColumn.Folder}">FOLDER</Button>
+            </Grid>
+          </Border>
+
+          <!-- Rows -->
+          <ListBox Grid.Row="2" x:Name="FileList" Classes="files" Margin="0,6,0,6"
+                   ItemsSource="{Binding VisibleFiles}"
+                   SelectedItem="{Binding SelectedFile}"
+                   SelectionMode="Multiple"
+                   IsVisible="{Binding HasFiles}">
+            <ListBox.ItemsPanel>
+              <ItemsPanelTemplate>
+                <VirtualizingStackPanel />
+              </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:FileItemViewModel">
+                <Grid ColumnDefinitions="40,*,28,*,96,170" Height="34" Background="Transparent"
+                      Classes="row" Classes.unchanged="{Binding IsUnchanged}" Classes.excluded="{Binding !IsIncluded}"
+                      ToolTip.Tip="{Binding Tooltip}">
+                  <CheckBox IsChecked="{Binding IsIncluded}" HorizontalAlignment="Center" VerticalAlignment="Center" MinHeight="0" Padding="0" />
+                  <Grid Grid.Column="1" ColumnDefinitions="Auto,*" VerticalAlignment="Center">
+                    <TextBlock Classes="icon faint" Text="{Binding TypeGlyph}" FontSize="13" Margin="0,0,10,0" />
+                    <ctl:DiffTextBlock Grid.Column="1" Side="Old" TextTrimming="CharacterEllipsis"
+                                       OldText="{Binding OriginalName}" NewText="{Binding NewName}"
+                                       Highlight="{Binding #Root.((vm:MainViewModel)DataContext).HighlightChanges}"
+                                       MarkBackground="{DynamicResource DiffDelBrush}" MarkForeground="{DynamicResource DiffDelTextBrush}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </Grid>
+                  <TextBlock Grid.Column="2" Classes="icon faint" Text="&#xE76C;" FontSize="10" HorizontalAlignment="Center"
+                             IsVisible="{Binding HasChange}" />
+                  <ctl:DiffTextBlock Grid.Column="3" Classes="newname" Side="New" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                     Margin="4,0,8,0" FontWeight="Medium"
+                                     OldText="{Binding OriginalName}" NewText="{Binding NewName}"
+                                     Highlight="{Binding #Root.((vm:MainViewModel)DataContext).HighlightChanges}"
+                                     MarkBackground="{DynamicResource DiffAddBrush}" MarkForeground="{DynamicResource DiffAddTextBrush}" />
+                  <Border Grid.Column="4" Classes="status" Classes.ok="{Binding IsOk}" Classes.conflict="{Binding IsProblem}" Classes.invalid="{Binding IsInvalid}">
+                    <TextBlock Text="{Binding StatusLabel}" />
+                  </Border>
+                  <TextBlock Grid.Column="5" Classes="faint" Classes.moving="{Binding ChangesFolder}" Text="{Binding FolderDisplay}" FontSize="12" VerticalAlignment="Center"
+                             TextTrimming="CharacterEllipsis" Margin="0,0,10,0" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <!-- Empty state -->
+          <StackPanel Grid.Row="2" IsVisible="{Binding IsEmpty}" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6" Margin="0,0,0,40">
+            <Border Width="76" Height="76" CornerRadius="22" Background="{DynamicResource BrandBrush}" HorizontalAlignment="Center" Margin="0,0,0,14" Opacity="0.95">
+              <TextBlock Classes="icon" Text="&#xE8B7;" FontSize="32" Foreground="White" HorizontalAlignment="Center" />
+            </Border>
+            <TextBlock Text="Drop files or folders here" FontFamily="{StaticResource DisplayFont}" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" />
+            <TextBlock Classes="muted" Text="Build a stack of rules on the right. Every new name previews live, nothing changes until you press Rename." HorizontalAlignment="Center" TextAlignment="Center" MaxWidth="420" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Margin="0,16,0,0">
+              <Button Classes="primary" Command="{Binding AddFilesCommand}" Padding="16,8">Add files</Button>
+              <Button Classes="soft" Command="{Binding AddFolderCommand}" Padding="16,8">Add folder</Button>
+            </StackPanel>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- ===== Right column ===== -->
+      <Grid Grid.Column="2" RowDefinitions="Auto,12,*,12,Auto">
+
+        <!-- Rule stack -->
+        <Border Classes="card" Padding="14,12,14,8">
+          <Grid RowDefinitions="Auto,Auto">
+            <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+              <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <TextBlock Classes="title" Text="Rules" />
+                <TextBlock Classes="faint" Text="applied top to bottom" FontSize="12" VerticalAlignment="Bottom" Margin="0,0,0,1" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                <Button x:Name="PresetsButton" Classes="ghost" AutomationProperties.Name="Presets" ToolTip.Tip="Presets">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Classes="icon" Text="&#xE728;" FontSize="12" />
+                    <TextBlock Text="Presets" FontSize="12.5" />
+                  </StackPanel>
+                  <Button.Flyout>
+                    <Flyout Placement="BottomEdgeAlignedRight">
+                      <StackPanel Width="280" Spacing="6">
+                        <TextBlock Classes="section" Text="SAVED PRESETS" />
+                        <TextBlock Classes="faint" Text="No presets yet." FontSize="12" IsVisible="{Binding !HasPresets}" />
+                        <ItemsControl ItemsSource="{Binding Presets}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                              <Grid ColumnDefinitions="*,Auto">
+                                <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                        Content="{Binding}" Click="OnFlyoutButtonClick"
+                                        Command="{Binding #Root.((vm:MainViewModel)DataContext).LoadPresetCommand}" CommandParameter="{Binding}" />
+                                <Button Grid.Column="1" Classes="ghost iconbtn danger" AutomationProperties.Name="Delete preset" ToolTip.Tip="Delete preset"
+                                        Command="{Binding #Root.((vm:MainViewModel)DataContext).DeletePresetCommand}" CommandParameter="{Binding}">
+                                  <TextBlock Classes="icon" Text="&#xE74D;" FontSize="12" />
+                                </Button>
+                              </Grid>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Separator Margin="0,4" />
+                        <TextBlock Classes="section" Text="SAVE CURRENT RULES" />
+                        <Grid ColumnDefinitions="*,6,Auto">
+                          <TextBox Text="{Binding NewPresetName}" Watermark="Preset name" AutomationProperties.Name="Preset name" />
+                          <Button Grid.Column="2" Classes="primary" Padding="12,6" AutomationProperties.Name="Save preset" Command="{Binding SavePresetCommand}">Save</Button>
+                        </Grid>
+                      </StackPanel>
+                    </Flyout>
+                  </Button.Flyout>
+                </Button>
+                <Button x:Name="ClearRulesButton" Classes="ghost iconbtn danger" IsEnabled="{Binding HasRules}"
+                        AutomationProperties.Name="Clear all rules" ToolTip.Tip="Clear all rules and start fresh">
+                  <TextBlock Classes="icon" Text="&#xE74D;" FontSize="13" />
+                  <Button.Flyout>
+                    <Flyout Placement="BottomEdgeAlignedRight">
+                      <StackPanel Width="250" Spacing="10">
+                        <TextBlock Text="Remove all rules?" FontWeight="SemiBold" />
+                        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                                   Text="Your files stay in the list. Save the rules as a preset first if you may want them again." />
+                        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                          <Button Classes="soft" Click="OnFlyoutButtonClick" AutomationProperties.Name="Keep rules">Cancel</Button>
+                          <Button Classes="primary" Padding="14,6" Click="OnFlyoutButtonClick" AutomationProperties.Name="Confirm clear all rules"
+                                  Command="{Binding ClearRulesCommand}">Clear all</Button>
+                        </StackPanel>
+                      </StackPanel>
+                    </Flyout>
+                  </Button.Flyout>
+                </Button>
+                <Button x:Name="AddRuleButton" Classes="primary" Padding="11,6" AutomationProperties.Name="Add rule" ToolTip.Tip="Add a rule to the stack">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Classes="icon" Text="&#xE710;" FontSize="11" Foreground="{DynamicResource OnAccentBrush}" />
+                    <TextBlock Text="Add rule" FontSize="12.5" />
+                  </StackPanel>
+                  <Button.Flyout>
+                    <Flyout Placement="BottomEdgeAlignedRight" FlyoutPresenterClasses="wide">
+                      <ItemsControl ItemsSource="{Binding RuleKinds}" Width="640">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <UniformGrid Columns="2" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:RuleKind">
+                            <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="8,7"
+                                    Click="OnFlyoutButtonClick" AutomationProperties.Name="{Binding Title}"
+                                    Command="{Binding #Root.((vm:MainViewModel)DataContext).AddRuleCommand}" CommandParameter="{Binding}">
+                              <Grid ColumnDefinitions="Auto,*">
+                                <Border Classes="badge">
+                                  <TextBlock Text="{Binding Icon}" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource AccentTextBrush}"
+                                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="11,0,0,0" VerticalAlignment="Center">
+                                  <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                                  <TextBlock Text="{Binding Description}" Classes="muted" FontSize="11.5" TextWrapping="Wrap" />
+                                </StackPanel>
+                              </Grid>
+                            </Button>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </Flyout>
+                  </Button.Flyout>
+                </Button>
+              </StackPanel>
+            </Grid>
+
+            <Grid Grid.Row="1">
+              <TextBlock Classes="faint" Text="No rules. Add one to start shaping names." IsVisible="{Binding !HasRules}" Margin="2,4,0,10" />
+              <ListBox Classes="rules" ItemsSource="{Binding Rules}" SelectedItem="{Binding SelectedRule}" MaxHeight="268">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="rules:RenameRule">
+                    <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="8,7" Classes="rule" Classes.off="{Binding !IsEnabled}">
+                      <CheckBox IsChecked="{Binding IsEnabled}" MinWidth="0" Padding="0" Margin="0,0,8,0" VerticalAlignment="Center" ToolTip.Tip="Enable or disable this rule" />
+                      <Border Grid.Column="1" Classes="badge">
+                        <TextBlock Text="{Binding Icon}" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource AccentTextBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+                      <StackPanel Grid.Column="2" Margin="10,0,6,0" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                          <TextBlock Classes="icon" Text="&#xE71C;" FontSize="10" Foreground="{DynamicResource AccentTextBrush}"
+                                     IsVisible="{Binding HasScope}" ToolTip.Tip="Only applies to some files" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding Summary}" Classes="muted" FontSize="11.5" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Classes="ghost iconbtn" Width="26" Height="26" AutomationProperties.Name="Move up" ToolTip.Tip="Move up"
+                                Command="{Binding #Root.((vm:MainViewModel)DataContext).MoveRuleUpCommand}" CommandParameter="{Binding}">
+                          <TextBlock Classes="icon" Text="&#xE70E;" FontSize="10" />
+                        </Button>
+                        <Button Classes="ghost iconbtn" Width="26" Height="26" AutomationProperties.Name="Move down" ToolTip.Tip="Move down"
+                                Command="{Binding #Root.((vm:MainViewModel)DataContext).MoveRuleDownCommand}" CommandParameter="{Binding}">
+                          <TextBlock Classes="icon" Text="&#xE70D;" FontSize="10" />
+                        </Button>
+                        <Button Classes="ghost iconbtn" Width="26" Height="26" AutomationProperties.Name="Duplicate" ToolTip.Tip="Duplicate"
+                                Command="{Binding #Root.((vm:MainViewModel)DataContext).DuplicateRuleCommand}" CommandParameter="{Binding}">
+                          <TextBlock Classes="icon" Text="&#xE8C8;" FontSize="11" />
+                        </Button>
+                        <Button Classes="ghost iconbtn danger" Width="26" Height="26" AutomationProperties.Name="Delete" ToolTip.Tip="Delete"
+                                Command="{Binding #Root.((vm:MainViewModel)DataContext).RemoveRuleCommand}" CommandParameter="{Binding}">
+                          <TextBlock Classes="icon" Text="&#xE711;" FontSize="11" />
+                        </Button>
+                      </StackPanel>
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Grid>
+          </Grid>
+        </Border>
+
+        <!-- Rule editor -->
+        <Border Grid.Row="2" Classes="card">
+          <Panel>
+            <TextBlock Classes="faint" Text="Select a rule to edit it." HorizontalAlignment="Center" VerticalAlignment="Center"
+                       IsVisible="{Binding !HasSelectedRule}" />
+            <ScrollViewer IsVisible="{Binding HasSelectedRule}" Padding="16,14,16,16">
+              <StackPanel Spacing="16" DataContext="{Binding SelectedRule}" x:DataType="rules:RenameRule">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                  <Border Classes="badge" Width="34" Height="34" Background="{DynamicResource BrandBrush}">
+                    <TextBlock Text="{Binding Icon}" FontWeight="Bold" FontSize="13" Foreground="White"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                  <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
+                    <TextBlock Classes="title" Text="{Binding Title}" />
+                    <TextBlock Classes="muted" Text="{Binding Summary}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                  <ToggleSwitch Grid.Column="2" IsChecked="{Binding IsEnabled}" OnContent="" OffContent="" MinWidth="0"
+                                VerticalAlignment="Center" ToolTip.Tip="Enable or disable this rule" />
+                </Grid>
+
+                <StackPanel IsVisible="{Binding SupportsTarget}">
+                  <TextBlock Classes="label" Text="Apply to" />
+                  <WrapPanel>
+                    <RadioButton Classes="segment" Content="Name" IsChecked="{Binding Target, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:RuleTarget.Name}}" />
+                    <RadioButton Classes="segment" Content="Extension" IsChecked="{Binding Target, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:RuleTarget.Extension}}" />
+                    <RadioButton Classes="segment" Content="Name + extension" IsChecked="{Binding Target, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:RuleTarget.FullName}}" />
+                  </WrapPanel>
+                </StackPanel>
+
+                <views:RuleEditorView DataContext="{Binding}" />
+
+                <Border Background="{DynamicResource WarningSoftBrush}" CornerRadius="8" Padding="10,6"
+                        IsVisible="{Binding RuntimeError, Converter={x:Static ObjectConverters.IsNotNull}}">
+                  <Border.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                      <Binding Path="RuntimeError" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                      <Binding Path="Icon" Converter="{x:Static vm:Ui.IsNotScript}" />
+                    </MultiBinding>
+                  </Border.IsVisible>
+                  <TextBlock Text="{Binding RuntimeError}" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap" FontSize="12" />
+                </Border>
+
+                <Border Height="1" Background="{DynamicResource StrokeBrush}" />
+
+                <Expander Header="Only apply to some files" IsExpanded="{Binding HasScope, Mode=OneTime}">
+                  <StackPanel Spacing="10">
+                    <TextBox Classes="mono" Text="{Binding ScopePattern}" Watermark="*.jpg; *.png   (matched against the current name)" />
+                    <WrapPanel>
+                      <CheckBox Content="Pattern is a regular expression" IsChecked="{Binding ScopeIsRegex}" Margin="0,0,16,0" />
+                      <CheckBox Content="Apply to files that do NOT match" IsChecked="{Binding ScopeInvert}" />
+                    </WrapPanel>
+                  </StackPanel>
+                </Expander>
+
+                <Expander Header="Insert a token">
+                  <ItemsControl ItemsSource="{Binding #Root.((vm:MainViewModel)DataContext).TokenGroups}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:TokenGroup">
+                        <StackPanel Margin="0,0,0,8">
+                          <TextBlock Classes="section" Text="{Binding Name}" Margin="0,0,0,6" />
+                          <ItemsControl ItemsSource="{Binding Tokens}">
+                            <ItemsControl.ItemsPanel>
+                              <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate x:DataType="vm:TokenInfoView">
+                                <Button Classes="chip" Content="{Binding Syntax}" AutomationProperties.Name="{Binding Description}" ToolTip.Tip="{Binding Description}"
+                                        Tag="{Binding Syntax}" Click="OnTokenClick" Focusable="False" />
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </StackPanel>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </Expander>
+              </StackPanel>
+            </ScrollViewer>
+          </Panel>
+        </Border>
+
+        <!-- Step-through for the selected file -->
+        <Border Grid.Row="4" Classes="card" Padding="14,12">
+          <StackPanel Spacing="8">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Classes="title" Text="Step by step" FontSize="13.5" />
+              <TextBlock Grid.Column="1" Classes="faint" FontSize="11.5" Text="for the selected file" VerticalAlignment="Center" />
+            </Grid>
+            <TextBlock Classes="faint" FontSize="12" Text="Select a file to see what each rule does to it." IsVisible="{Binding !HasSelectedFile}" />
+            <ScrollViewer MaxHeight="170" IsVisible="{Binding HasSelectedFile}">
+              <ItemsControl ItemsSource="{Binding Trace}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:TraceStepViewModel">
+                    <Grid ColumnDefinitions="22,110,*" Margin="0,2" Opacity="{Binding Applied, Converter={x:Static vm:Ui.AppliedOpacity}}">
+                      <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource AccentSoftBrush}" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Number}" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+                      <TextBlock Grid.Column="1" Text="{Binding Title}" Classes="muted" FontSize="12" VerticalAlignment="Center" Margin="6,0" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Grid.Column="2" Text="{Binding Name}" FontFamily="{StaticResource MonoFont}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                 ToolTip.Tip="{Binding Name}" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <!-- ===== History drawer ===== -->
+      <Border Grid.Column="0" Grid.ColumnSpan="3" HorizontalAlignment="Right" Width="400" Classes="card"
+              IsVisible="{Binding IsHistoryOpen}" BoxShadow="0 12 40 0 #66000000" Padding="16,14">
+        <Grid RowDefinitions="Auto,Auto,*">
+          <Grid ColumnDefinitions="*,Auto,Auto">
+            <TextBlock Classes="title" Text="History" />
+            <Button Grid.Column="1" Classes="ghost" Command="{Binding OpenHistoryFolderCommand}" FontSize="12">Open folder</Button>
+            <Button Grid.Column="2" Classes="ghost iconbtn" AutomationProperties.Name="Close history" Command="{Binding ToggleHistoryCommand}">
+              <TextBlock Classes="icon" Text="&#xE711;" />
+            </Button>
+          </Grid>
+          <TextBlock Grid.Row="1" Classes="muted" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,12"
+                     Text="Every rename is recorded, so you can undo it later, even after closing Proteus." />
+          <Panel Grid.Row="2">
+            <TextBlock Classes="faint" Text="Nothing renamed yet." IsVisible="{Binding !HasHistory}" HorizontalAlignment="Center" Margin="0,20" />
+            <ScrollViewer>
+              <ItemsControl ItemsSource="{Binding History}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:HistoryItemViewModel">
+                    <Border Background="{DynamicResource SurfaceRaisedBrush}" BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="1"
+                            CornerRadius="10" Padding="12,10" Margin="0,0,0,8">
+                      <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                        <TextBlock Grid.Row="1" Text="{Binding When}" Classes="faint" FontSize="11.5" />
+                        <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="{Binding Example}" FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                                   Classes="muted" TextTrimming="CharacterEllipsis" Margin="0,6,0,0" />
+                        <Button Grid.Column="1" Grid.RowSpan="2" Classes="soft" VerticalAlignment="Center" IsVisible="{Binding !IsUndone}" AutomationProperties.Name="Undo batch"
+                                Command="{Binding #Root.((vm:MainViewModel)DataContext).UndoBatchCommand}" CommandParameter="{Binding}">
+                          <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Classes="icon" Text="&#xE7A7;" FontSize="12" />
+                            <TextBlock Text="Undo" />
+                          </StackPanel>
+                        </Button>
+                        <Border Grid.Column="1" Grid.RowSpan="2" Classes="status" IsVisible="{Binding IsUndone}" VerticalAlignment="Center">
+                          <TextBlock Text="Undone" />
+                        </Border>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Panel>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <!-- ============ Bottom bar ============ -->
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="16,10,12,12">
+      <Panel VerticalAlignment="Center">
+        <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNull}}">
+          <TextBlock Text="{Binding StatsText}" Classes="muted" VerticalAlignment="Center" />
+        </StackPanel>
+        <Border IsVisible="{Binding Notice, Converter={x:Static ObjectConverters.IsNotNull}}" HorizontalAlignment="Left"
+                CornerRadius="10" Padding="12,6" Background="{DynamicResource SuccessSoftBrush}"
+                Classes.error="{Binding NoticeIsError}" x:Name="NoticeBar">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Classes="icon" Text="&#xE73E;" Foreground="{DynamicResource SuccessBrush}" IsVisible="{Binding !NoticeIsError}" />
+            <TextBlock Classes="icon" Text="&#xE7BA;" Foreground="{DynamicResource DangerBrush}" IsVisible="{Binding NoticeIsError}" />
+            <TextBlock Text="{Binding Notice}" VerticalAlignment="Center" MaxWidth="640" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Notice}" />
+            <Button Classes="ghost" Padding="8,2" AutomationProperties.Name="Undo" Command="{Binding UndoLastCommand}" IsVisible="{Binding NoticeCanUndo}">
+              <TextBlock Text="Undo" FontWeight="SemiBold" Foreground="{DynamicResource AccentTextBrush}" />
+            </Button>
+            <Button Classes="ghost iconbtn" Width="22" Height="22" AutomationProperties.Name="Dismiss" Command="{Binding DismissNoticeCommand}">
+              <TextBlock Classes="icon" Text="&#xE711;" FontSize="9" />
+            </Button>
+          </StackPanel>
+        </Border>
+      </Panel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <Button x:Name="ModeButton" Classes="soft chipbtn" Classes.active="{Binding Options.MovesFiles}"
+                AutomationProperties.Name="Batch mode" ToolTip.Tip="Rename in place, or copy / move to another folder">
+          <StackPanel Orientation="Horizontal" Spacing="7">
+            <TextBlock Classes="icon" Text="&#xE8DE;" FontSize="12" />
+            <TextBlock Text="{Binding Options.ModeSummary}" MaxWidth="220" TextTrimming="CharacterEllipsis" />
+            <TextBlock Classes="icon" Text="&#xE70D;" FontSize="9" />
+          </StackPanel>
+          <Button.Flyout>
+            <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="wide">
+              <StackPanel Width="420" Spacing="12">
+                <TextBlock Classes="section" Text="WHAT TO DO WITH THE FILES" />
+                <WrapPanel>
+                  <RadioButton Classes="segment" Content="Rename in place" IsChecked="{Binding Options.Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static engine:BatchMode.Rename}}" />
+                  <RadioButton Classes="segment" Content="Copy" IsChecked="{Binding Options.Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static engine:BatchMode.Copy}}" />
+                  <RadioButton Classes="segment" Content="Move" IsChecked="{Binding Options.Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static engine:BatchMode.Move}}" />
+                </WrapPanel>
+                <StackPanel Spacing="12" IsVisible="{Binding Options.MovesFiles}">
+                  <StackPanel>
+                    <TextBlock Classes="label" Text="Destination folder" />
+                    <Grid ColumnDefinitions="*,6,Auto">
+                      <TextBox Text="{Binding Options.DestinationFolder}" Watermark="Leave empty to use each file's own folder" AutomationProperties.Name="Destination folder" />
+                      <Button Grid.Column="2" Classes="soft" Command="{Binding PickDestinationCommand}" AutomationProperties.Name="Browse for destination">Browse…</Button>
+                    </Grid>
+                  </StackPanel>
+                  <StackPanel>
+                    <TextBlock Classes="label" Text="Sort into subfolders (optional)" />
+                    <TextBox Classes="mono" Text="{Binding Options.SubfolderTemplate}" AutomationProperties.Name="Subfolders"
+                             Watermark="&lt;exif:taken:yyyy&gt;\&lt;exif:taken:MM&gt;" />
+                    <TextBlock Classes="faint" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"
+                               Text="Any tokens work. Use \ between folder levels, e.g. &lt;music:artist&gt;\&lt;music:album&gt; or &lt;ext&gt;. Folders are created as needed." />
+                  </StackPanel>
+                </StackPanel>
+                <Separator />
+                <TextBlock Classes="section" Text="WHEN A NAME IS ALREADY TAKEN" />
+                <WrapPanel>
+                  <RadioButton Classes="segment" Content="Stop and flag it" IsChecked="{Binding Options.Conflicts, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static engine:ConflictPolicy.Block}}" />
+                  <RadioButton Classes="segment" Content="Add (2), (3)…" IsChecked="{Binding Options.Conflicts, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static engine:ConflictPolicy.AddNumber}}" />
+                </WrapPanel>
+                <TextBlock Classes="faint" FontSize="11" TextWrapping="Wrap"
+                           Text="Copies and moves are recorded in History too. Undoing a copy sends the copies to the Recycle Bin." />
+              </StackPanel>
+            </Flyout>
+          </Button.Flyout>
+        </Button>
+
+        <Button x:Name="PropsButton" Classes="soft chipbtn" Classes.active="{Binding Options.ChangesProperties}"
+                AutomationProperties.Name="Dates and attributes" ToolTip.Tip="Change created / modified / accessed dates and file attributes">
+          <StackPanel Orientation="Horizontal" Spacing="7">
+            <TextBlock Classes="icon" Text="&#xE787;" FontSize="12" />
+            <TextBlock Text="{Binding Options.PropertiesSummary}" />
+            <TextBlock Classes="icon" Text="&#xE70D;" FontSize="9" />
+          </StackPanel>
+          <Button.Flyout>
+            <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="wide">
+              <ScrollViewer MaxHeight="640">
+                <StackPanel Width="440" Spacing="12" Margin="0,0,10,0">
+                  <TextBlock Classes="section" Text="DATES" />
+                  <StackPanel>
+                    <TextBlock Classes="label" Text="Created" />
+                    <ContentControl Content="{Binding Options.Created}" />
+                  </StackPanel>
+                  <StackPanel>
+                    <TextBlock Classes="label" Text="Modified" />
+                    <ContentControl Content="{Binding Options.Modified}" />
+                  </StackPanel>
+                  <StackPanel>
+                    <TextBlock Classes="label" Text="Accessed" />
+                    <ContentControl Content="{Binding Options.Accessed}" />
+                  </StackPanel>
+                  <Separator />
+                  <TextBlock Classes="section" Text="ATTRIBUTES" />
+              <Grid ColumnDefinitions="90,*">
+                <TextBlock Text="Read-only" VerticalAlignment="Center" />
+                <WrapPanel Grid.Column="1">
+                  <RadioButton Classes="segment" Content="Keep" IsChecked="{Binding Options.ReadOnly, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static engine:AttributeChange.Keep}}" />
+                  <RadioButton Classes="segment" Content="Turn on" IsChecked="{Binding Options.ReadOnly, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static engine:AttributeChange.Set}}" />
+                  <RadioButton Classes="segment" Content="Turn off" IsChecked="{Binding Options.ReadOnly, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static engine:AttributeChange.Clear}}" />
+                </WrapPanel>
+              </Grid>
+              <Grid ColumnDefinitions="90,*">
+                <TextBlock Text="Hidden" VerticalAlignment="Center" />
+                <WrapPanel Grid.Column="1">
+                  <RadioButton Classes="segment" Content="Keep" IsChecked="{Binding Options.Hidden, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static engine:AttributeChange.Keep}}" />
+                  <RadioButton Classes="segment" Content="Turn on" IsChecked="{Binding Options.Hidden, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static engine:AttributeChange.Set}}" />
+                  <RadioButton Classes="segment" Content="Turn off" IsChecked="{Binding Options.Hidden, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static engine:AttributeChange.Clear}}" />
+                </WrapPanel>
+              </Grid>
+              <Grid ColumnDefinitions="90,*">
+                <TextBlock Text="Archive" VerticalAlignment="Center" />
+                <WrapPanel Grid.Column="1">
+                  <RadioButton Classes="segment" Content="Keep" IsChecked="{Binding Options.Archive, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static engine:AttributeChange.Keep}}" />
+                  <RadioButton Classes="segment" Content="Turn on" IsChecked="{Binding Options.Archive, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static engine:AttributeChange.Set}}" />
+                  <RadioButton Classes="segment" Content="Turn off" IsChecked="{Binding Options.Archive, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static engine:AttributeChange.Clear}}" />
+                </WrapPanel>
+              </Grid>
+              <Grid ColumnDefinitions="90,*">
+                <TextBlock Text="System" VerticalAlignment="Center" />
+                <WrapPanel Grid.Column="1">
+                  <RadioButton Classes="segment" Content="Keep" IsChecked="{Binding Options.System, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static engine:AttributeChange.Keep}}" />
+                  <RadioButton Classes="segment" Content="Turn on" IsChecked="{Binding Options.System, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static engine:AttributeChange.Set}}" />
+                  <RadioButton Classes="segment" Content="Turn off" IsChecked="{Binding Options.System, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static engine:AttributeChange.Clear}}" />
+                </WrapPanel>
+              </Grid>
+                  <TextBlock Classes="faint" FontSize="11" TextWrapping="Wrap"
+                             Text="Changes show in Step by step and in each file's tooltip, and History can put the old values back." />
+                </StackPanel>
+              </ScrollViewer>
+            </Flyout>
+          </Button.Flyout>
+        </Button>
+        <ProgressBar Width="140" Minimum="0" Maximum="1" Value="{Binding Progress}" IsVisible="{Binding IsBusy}" VerticalAlignment="Center" />
+        <Button Classes="primary" Command="{Binding RenameCommand}" IsEnabled="{Binding CanRename}" Padding="20,10" HotKey="Ctrl+Enter"
+                AutomationProperties.Name="Rename now (Ctrl+Enter)" ToolTip.Tip="Rename now (Ctrl+Enter)">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Classes="icon" Text="&#xE8AC;" FontSize="13" />
+            <TextBlock Text="{Binding RenameButtonText}" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+    </Grid>
+  </Grid>
+</Window>

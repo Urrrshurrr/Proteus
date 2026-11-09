@@ -1,0 +1,483 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:rules="using:Proteus.Core.Rules"
+             xmlns:conv="using:Proteus.App.Converters"
+             x:Class="Proteus.App.Views.RuleEditorView"
+             x:DataType="rules:RenameRule">
+  <UserControl.Styles>
+    <Style Selector="StackPanel.field">
+      <Setter Property="Spacing" Value="0" />
+    </Style>
+  </UserControl.Styles>
+
+  <UserControl.DataTemplates>
+
+    <!-- Replace -->
+    <DataTemplate DataType="rules:ReplaceRule">
+      <StackPanel Spacing="14">
+        <StackPanel>
+          <TextBlock Classes="label" Text="Find" />
+          <TextBox AutomationProperties.Name="Find" Classes="mono" Text="{Binding Find}" Watermark="Text or pattern to find" />
+        </StackPanel>
+        <StackPanel>
+          <TextBlock Classes="label" Text="Replace with" />
+          <TextBox AutomationProperties.Name="Replace with" Classes="mono tokens" Text="{Binding ReplaceWith}" Watermark="Leave empty to delete the match" />
+        </StackPanel>
+        <WrapPanel>
+          <CheckBox Content="Regular expression" IsChecked="{Binding UseRegex}" Margin="0,0,18,0" />
+          <CheckBox Content="Match case" IsChecked="{Binding CaseSensitive}" />
+        </WrapPanel>
+        <Border Classes="pill" Background="{DynamicResource DangerSoftBrush}" CornerRadius="8" Padding="10,6"
+                IsVisible="{Binding RegexError, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <TextBlock Text="{Binding RegexError}" Foreground="{DynamicResource DangerBrush}" TextWrapping="Wrap" FontSize="12" />
+        </Border>
+        <StackPanel>
+          <TextBlock Classes="label" Text="Which matches" />
+          <WrapPanel>
+            <RadioButton Classes="segment" Content="All" IsChecked="{Binding Occurrence, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:Occurrence.All}}" />
+            <RadioButton Classes="segment" Content="First" IsChecked="{Binding Occurrence, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:Occurrence.First}}" />
+            <RadioButton Classes="segment" Content="Last" IsChecked="{Binding Occurrence, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:Occurrence.Last}}" />
+          </WrapPanel>
+        </StackPanel>
+        <TextBlock Classes="faint" FontSize="11.5" TextWrapping="Wrap"
+                   Text="With regular expressions, use $1, $2 in the replacement to reuse captured groups." />
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- Insert -->
+    <DataTemplate DataType="rules:InsertRule">
+      <StackPanel Spacing="14">
+        <StackPanel>
+          <TextBlock Classes="label" Text="Text to insert" />
+          <TextBox AutomationProperties.Name="Text to insert" Classes="mono tokens" Text="{Binding Text}" Watermark="e.g. Holiday - or &lt;modified:yyyy-MM-dd&gt; " />
+        </StackPanel>
+        <StackPanel>
+          <TextBlock Classes="label" Text="Where" />
+          <WrapPanel>
+            <RadioButton Classes="segment" Content="At start" IsChecked="{Binding Position, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:InsertPosition.Prefix}}" />
+            <RadioButton Classes="segment" Content="At end" IsChecked="{Binding Position, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:InsertPosition.Suffix}}" />
+            <RadioButton Classes="segment" Content="At position" IsChecked="{Binding Position, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:InsertPosition.AtPosition}}" />
+            <RadioButton Classes="segment" Content="Before text" IsChecked="{Binding Position, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:InsertPosition.BeforeText}}" />
+            <RadioButton Classes="segment" Content="After text" IsChecked="{Binding Position, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:InsertPosition.AfterText}}" />
+          </WrapPanel>
+        </StackPanel>
+        <Grid ColumnDefinitions="140,16,*"
+              IsVisible="{Binding Position, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:InsertPosition.AtPosition}}">
+          <StackPanel>
+            <TextBlock Classes="label" Text="Position" />
+            <NumericUpDown AutomationProperties.Name="Position" Value="{Binding Index}" Minimum="1" Maximum="999" FormatString="0" Increment="1" />
+          </StackPanel>
+          <CheckBox Grid.Column="2" VerticalAlignment="Bottom" Content="Count from the end" IsChecked="{Binding FromEnd}" />
+        </Grid>
+        <StackPanel IsVisible="{Binding Position, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:InsertPosition.BeforeText}}">
+          <TextBlock Classes="label" Text="Before this text" />
+          <TextBox AutomationProperties.Name="Before this text" Classes="mono" Text="{Binding Anchor}" />
+        </StackPanel>
+        <StackPanel IsVisible="{Binding Position, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:InsertPosition.AfterText}}">
+          <TextBlock Classes="label" Text="After this text" />
+          <TextBox AutomationProperties.Name="After this text" Classes="mono" Text="{Binding Anchor}" />
+        </StackPanel>
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- Remove -->
+    <DataTemplate DataType="rules:RemoveRule">
+      <StackPanel Spacing="14">
+        <Grid ColumnDefinitions="*,12,*">
+          <StackPanel>
+            <TextBlock Classes="label" Text="How many characters" />
+            <NumericUpDown AutomationProperties.Name="How many characters" Value="{Binding Count}" Minimum="0" Maximum="999" FormatString="0" />
+          </StackPanel>
+          <StackPanel Grid.Column="2">
+            <TextBlock Classes="label" Text="Starting at character" />
+            <NumericUpDown AutomationProperties.Name="Starting at character" Value="{Binding Start}" Minimum="1" Maximum="999" FormatString="0" />
+          </StackPanel>
+        </Grid>
+        <StackPanel>
+          <TextBlock Classes="label" Text="Count from" />
+          <WrapPanel>
+            <RadioButton Classes="segment" Content="Start" IsChecked="{Binding !FromEnd}" />
+            <RadioButton Classes="segment" Content="End" IsChecked="{Binding FromEnd}" />
+          </WrapPanel>
+        </StackPanel>
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- Case -->
+    <DataTemplate DataType="rules:CaseRule">
+      <StackPanel Spacing="14">
+        <StackPanel>
+          <TextBlock Classes="label" Text="Style" />
+          <WrapPanel>
+            <RadioButton Classes="segment" Content="Title Case" IsChecked="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:CaseMode.Title}}" />
+            <RadioButton Classes="segment" Content="Sentence case" IsChecked="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:CaseMode.Sentence}}" />
+            <RadioButton Classes="segment" Content="lowercase" IsChecked="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:CaseMode.Lower}}" />
+            <RadioButton Classes="segment" Content="UPPERCASE" IsChecked="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:CaseMode.Upper}}" />
+            <RadioButton Classes="segment" Content="iNVERT" IsChecked="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:CaseMode.Invert}}" />
+          </WrapPanel>
+        </StackPanel>
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- Numbering -->
+    <DataTemplate DataType="rules:NumberingRule">
+      <StackPanel Spacing="14">
+        <Grid ColumnDefinitions="*,10,*,10,*">
+          <StackPanel>
+            <TextBlock Classes="label" Text="Start at" />
+            <NumericUpDown AutomationProperties.Name="Start at" Value="{Binding StartAt}" Minimum="-999999" Maximum="99999999" FormatString="0" />
+          </StackPanel>
+          <StackPanel Grid.Column="2">
+            <TextBlock Classes="label" Text="Step" />
+            <NumericUpDown AutomationProperties.Name="Step" Value="{Binding Step}" Minimum="-9999" Maximum="9999" FormatString="0" />
+          </StackPanel>
+          <StackPanel Grid.Column="4">
+            <TextBlock Classes="label" Text="Digits" />
+            <NumericUpDown AutomationProperties.Name="Digits" Value="{Binding Digits}" Minimum="0" Maximum="12" FormatString="0" />
+          </StackPanel>
+        </Grid>
+        <StackPanel>
+          <TextBlock Classes="label" Text="Place the number" />
+          <WrapPanel>
+            <RadioButton Classes="segment" Content="Before name" IsChecked="{Binding Placement, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:NumberPlacement.Prefix}}" />
+            <RadioButton Classes="segment" Content="After name" IsChecked="{Binding Placement, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:NumberPlacement.Suffix}}" />
+            <RadioButton Classes="segment" Content="Replace name" IsChecked="{Binding Placement, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:NumberPlacement.Replace}}" />
+          </WrapPanel>
+        </StackPanel>
+        <StackPanel IsVisible="{Binding Placement, Converter={x:Static conv:EnumNotEqualsConverter.Instance}, ConverterParameter={x:Static rules:NumberPlacement.Replace}}">
+          <TextBlock Classes="label" Text="Separator" />
+          <TextBox AutomationProperties.Name="Separator" Classes="mono" Text="{Binding Separator}" Watermark="e.g.  -  or _" />
+        </StackPanel>
+        <CheckBox Content="Restart numbering in each folder" IsChecked="{Binding ResetPerFolder}" />
+        <TextBlock Classes="faint" FontSize="11.5" TextWrapping="Wrap"
+                   Text="Numbers follow the order of the list. Click a column header to sort first." />
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- Template -->
+    <DataTemplate DataType="rules:TemplateRule">
+      <StackPanel Spacing="14">
+        <StackPanel>
+          <TextBlock Classes="label" Text="New name" />
+          <TextBox AutomationProperties.Name="New name" Classes="mono tokens" Text="{Binding Template}" Watermark="&lt;exif:taken:yyyy-MM-dd&gt; &lt;name&gt;" />
+        </StackPanel>
+        <TextBlock Classes="faint" FontSize="11.5" TextWrapping="Wrap"
+                   Text="Use &lt;current&gt; for the name as the rules above left it, and &lt;name&gt; for the original. Click a token below to insert it." />
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- Clean up -->
+    <DataTemplate DataType="rules:CleanupRule">
+      <StackPanel Spacing="12">
+        <TextBlock Classes="section" Text="TURN INTO SPACES" />
+        <WrapPanel>
+          <CheckBox Content="Underscores _" IsChecked="{Binding UnderscoresToSpaces}" Margin="0,0,16,0" />
+          <CheckBox Content="Dots ." IsChecked="{Binding DotsToSpaces}" Margin="0,0,16,0" />
+          <CheckBox Content="Dashes -" IsChecked="{Binding DashesToSpaces}" Margin="0,0,16,0" />
+          <CheckBox Content="%20" IsChecked="{Binding Percent20ToSpaces}" />
+        </WrapPanel>
+        <TextBlock Classes="section" Text="REMOVE" />
+        <WrapPanel>
+          <CheckBox Content="(round)" IsChecked="{Binding RemoveRoundBrackets}" Margin="0,0,16,0" />
+          <CheckBox Content="[square]" IsChecked="{Binding RemoveSquareBrackets}" Margin="0,0,16,0" />
+          <CheckBox Content="{}{curly}" IsChecked="{Binding RemoveCurlyBrackets}" Margin="0,0,16,0" />
+          <CheckBox Content="Digits" IsChecked="{Binding StripDigits}" Margin="0,0,16,0" />
+          <CheckBox Content="Symbols" IsChecked="{Binding StripSymbols}" Margin="0,0,16,0" />
+          <CheckBox Content="Accents (é → e)" IsChecked="{Binding StripDiacritics}" />
+        </WrapPanel>
+        <StackPanel>
+          <TextBlock Classes="label" Text="Also remove these characters" />
+          <TextBox AutomationProperties.Name="Also remove these characters" Classes="mono" Text="{Binding StripCharacters}" Watermark="e.g. #!~" />
+        </StackPanel>
+        <TextBlock Classes="section" Text="SPACING" />
+        <WrapPanel>
+          <CheckBox Content="Single spaces only" IsChecked="{Binding CollapseSpaces}" Margin="0,0,16,0" />
+          <CheckBox Content="Trim ends" IsChecked="{Binding Trim}" />
+        </WrapPanel>
+        <StackPanel>
+          <TextBlock Classes="label" Text="Finally, replace spaces with" />
+          <TextBox AutomationProperties.Name="Finally, replace spaces with" Classes="mono" Text="{Binding SpaceReplacement}" Watermark="Leave empty to keep spaces" />
+        </StackPanel>
+        <StackPanel>
+          <TextBlock Classes="label" Text="Shorten to at most (characters, 0 = no limit)" />
+          <NumericUpDown AutomationProperties.Name="Maximum length" Value="{Binding MaxLength}" Minimum="0" Maximum="250" FormatString="0" Width="140" HorizontalAlignment="Left" />
+        </StackPanel>
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- Extension -->
+    <DataTemplate DataType="rules:ExtensionRule">
+      <StackPanel Spacing="14">
+        <StackPanel>
+          <TextBlock Classes="label" Text="Action" />
+          <WrapPanel>
+            <RadioButton Classes="segment" Content="lowercase" IsChecked="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:ExtensionMode.Lowercase}}" />
+            <RadioButton Classes="segment" Content="UPPERCASE" IsChecked="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:ExtensionMode.Uppercase}}" />
+            <RadioButton Classes="segment" Content="Change to" IsChecked="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:ExtensionMode.Change}}" />
+            <RadioButton Classes="segment" Content="Append" IsChecked="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:ExtensionMode.Append}}" />
+            <RadioButton Classes="segment" Content="Remove" IsChecked="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:ExtensionMode.Remove}}" />
+          </WrapPanel>
+        </StackPanel>
+        <StackPanel IsVisible="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:ExtensionMode.Change}}">
+          <TextBlock Classes="label" Text="New extension" />
+          <TextBox AutomationProperties.Name="New extension" Classes="mono" Text="{Binding NewExtension}" Watermark="e.g. jpg" />
+        </StackPanel>
+        <StackPanel IsVisible="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:ExtensionMode.Append}}">
+          <TextBlock Classes="label" Text="Extension to add" />
+          <TextBox AutomationProperties.Name="Extension to add" Classes="mono" Text="{Binding NewExtension}" Watermark="e.g. bak" />
+        </StackPanel>
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- Pad numbers -->
+    <DataTemplate DataType="rules:PadNumbersRule">
+      <StackPanel Spacing="14">
+        <StackPanel>
+          <TextBlock Classes="label" Text="Minimum digits" />
+          <NumericUpDown AutomationProperties.Name="Minimum digits" Value="{Binding Digits}" Minimum="1" Maximum="12" FormatString="0" Width="140" HorizontalAlignment="Left"
+                         IsEnabled="{Binding !RemovePadding}" />
+        </StackPanel>
+        <CheckBox Content="Instead, remove leading zeros (007 → 7)" IsChecked="{Binding RemovePadding}" />
+        <TextBlock Classes="faint" FontSize="11.5" TextWrapping="Wrap"
+                   Text="Turns “Track 7” into “Track 007”, so files sort in the right order everywhere." />
+      </StackPanel>
+    </DataTemplate>
+    <!-- Rearrange -->
+    <DataTemplate DataType="rules:RearrangeRule">
+      <StackPanel Spacing="14">
+        <StackPanel>
+          <TextBlock Classes="label" Text="Split the name at" />
+          <TextBox AutomationProperties.Name="Split the name at" Classes="mono" Text="{Binding Delimiter}" Watermark="e.g.  -   (leave empty to split at spaces)" />
+        </StackPanel>
+        <StackPanel>
+          <TextBlock Classes="label" Text="New order" />
+          <TextBox AutomationProperties.Name="New order" Classes="mono tokens" Text="{Binding Pattern}" Watermark="e.g. $2 - $1" />
+        </StackPanel>
+        <TextBlock Classes="faint" FontSize="11.5" TextWrapping="Wrap"
+                   Text="$1, $2, $3 are the parts in order; $L is the last part, $-2 the one before it, $0 the whole name. Example: “Artist - Title” with $2 - $1 becomes “Title - Artist”." />
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- Trim around text -->
+    <DataTemplate DataType="rules:CropRule">
+      <StackPanel Spacing="14">
+        <StackPanel>
+          <TextBlock Classes="label" Text="What to do" />
+          <WrapPanel>
+            <RadioButton Classes="segment" Content="Remove after" IsChecked="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:CropMode.RemoveAfter}}" />
+            <RadioButton Classes="segment" Content="Remove before" IsChecked="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:CropMode.RemoveBefore}}" />
+            <RadioButton Classes="segment" Content="Keep between" IsChecked="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:CropMode.KeepBetween}}" />
+            <RadioButton Classes="segment" Content="Remove between" IsChecked="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:CropMode.RemoveBetween}}" />
+          </WrapPanel>
+        </StackPanel>
+        <Grid ColumnDefinitions="*,10,*">
+          <StackPanel>
+            <TextBlock Classes="label" Text="Marker text" />
+            <TextBox AutomationProperties.Name="Marker text" Classes="mono" Text="{Binding Marker}" Watermark="e.g.  (" />
+          </StackPanel>
+          <StackPanel Grid.Column="2"
+                      IsVisible="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:CropMode.KeepBetween}}">
+            <TextBlock Classes="label" Text="End marker" />
+            <TextBox AutomationProperties.Name="End marker" Classes="mono" Text="{Binding EndMarker}" Watermark="e.g. )" />
+          </StackPanel>
+          <StackPanel Grid.Column="2"
+                      IsVisible="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:CropMode.RemoveBetween}}">
+            <TextBlock Classes="label" Text="End marker" />
+            <TextBox AutomationProperties.Name="End marker" Classes="mono" Text="{Binding EndMarker}" Watermark="e.g. )" />
+          </StackPanel>
+        </Grid>
+        <WrapPanel>
+          <CheckBox Content="Include the markers" IsChecked="{Binding IncludeMarker}" Margin="0,0,16,0" />
+          <CheckBox Content="Use the last match" IsChecked="{Binding UseLastMatch}" Margin="0,0,16,0" />
+          <CheckBox Content="Match case" IsChecked="{Binding CaseSensitive}" />
+        </WrapPanel>
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- Move -->
+    <DataTemplate DataType="rules:MoveRule">
+      <StackPanel Spacing="14">
+        <StackPanel>
+          <TextBlock Classes="label" Text="Move" />
+          <WrapPanel>
+            <RadioButton Classes="segment" Content="Characters" IsChecked="{Binding Source, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:MoveSource.Characters}}" />
+            <RadioButton Classes="segment" Content="A piece of text" IsChecked="{Binding Source, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:MoveSource.Text}}" />
+          </WrapPanel>
+        </StackPanel>
+        <StackPanel Spacing="10" IsVisible="{Binding Source, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:MoveSource.Characters}}">
+          <Grid ColumnDefinitions="*,10,*">
+            <StackPanel>
+              <TextBlock Classes="label" Text="How many" />
+              <NumericUpDown AutomationProperties.Name="How many" Value="{Binding Count}" Minimum="1" Maximum="999" FormatString="0" />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+              <TextBlock Classes="label" Text="Starting at character" />
+              <NumericUpDown AutomationProperties.Name="Starting at character" Value="{Binding Start}" Minimum="1" Maximum="999" FormatString="0" />
+            </StackPanel>
+          </Grid>
+          <CheckBox Content="Count from the end" IsChecked="{Binding FromEnd}" />
+        </StackPanel>
+        <StackPanel Spacing="10" IsVisible="{Binding Source, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:MoveSource.Text}}">
+          <StackPanel>
+            <TextBlock Classes="label" Text="Text to move" />
+            <TextBox AutomationProperties.Name="Text to move" Classes="mono" Text="{Binding Text}" Watermark="e.g. 2024  or  \d{4} with regex" />
+          </StackPanel>
+          <CheckBox Content="Regular expression" IsChecked="{Binding TextIsRegex}" />
+        </StackPanel>
+        <StackPanel>
+          <TextBlock Classes="label" Text="To" />
+          <WrapPanel>
+            <RadioButton Classes="segment" Content="The start" IsChecked="{Binding Destination, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:MoveDestination.Start}}" />
+            <RadioButton Classes="segment" Content="The end" IsChecked="{Binding Destination, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:MoveDestination.End}}" />
+            <RadioButton Classes="segment" Content="A position" IsChecked="{Binding Destination, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:MoveDestination.Position}}" />
+          </WrapPanel>
+        </StackPanel>
+        <Grid ColumnDefinitions="*,10,*">
+          <StackPanel IsVisible="{Binding Destination, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:MoveDestination.Position}}">
+            <TextBlock Classes="label" Text="Position" />
+            <NumericUpDown AutomationProperties.Name="Position" Value="{Binding ToPosition}" Minimum="1" Maximum="999" FormatString="0" />
+          </StackPanel>
+          <StackPanel Grid.Column="2" IsVisible="{Binding Destination, Converter={x:Static conv:EnumNotEqualsConverter.Instance}, ConverterParameter={x:Static rules:MoveDestination.Position}}">
+            <TextBlock Classes="label" Text="Separator" />
+            <TextBox AutomationProperties.Name="Separator" Classes="mono" Text="{Binding Separator}" />
+          </StackPanel>
+        </Grid>
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- Reformat dates -->
+    <DataTemplate DataType="rules:ReformatDateRule">
+      <StackPanel Spacing="14">
+        <StackPanel>
+          <TextBlock Classes="label" Text="Dates written like" />
+          <TextBox AutomationProperties.Name="Dates written like" Classes="mono" Text="{Binding SourceFormats}" Watermark="dd.MM.yyyy; MM-dd-yy; d MMM yyyy" />
+        </StackPanel>
+        <StackPanel>
+          <TextBlock Classes="label" Text="Rewrite as" />
+          <TextBox AutomationProperties.Name="Rewrite as" Classes="mono" Text="{Binding TargetFormat}" Watermark="yyyy-MM-dd" />
+        </StackPanel>
+        <CheckBox Content="Month names are in English (Jan, February…)" IsChecked="{Binding EnglishMonthNames}" />
+        <TextBlock Classes="faint" FontSize="11.5" TextWrapping="Wrap"
+                   Text="Separate several input formats with ;  Letters: yyyy year, MM month, MMM Jan, dd day, HH hour, mm minute, ss second." />
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- Transliterate -->
+    <DataTemplate DataType="rules:TransliterateRule">
+      <StackPanel Spacing="14">
+        <StackPanel>
+          <TextBlock Classes="label" Text="Convert" />
+          <WrapPanel>
+            <RadioButton Classes="segment" Content="Everything to ASCII" IsChecked="{Binding Alphabet, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:TranslitAlphabet.AllToAscii}}" />
+            <RadioButton Classes="segment" Content="Cyrillic" IsChecked="{Binding Alphabet, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:TranslitAlphabet.Cyrillic}}" />
+            <RadioButton Classes="segment" Content="Greek" IsChecked="{Binding Alphabet, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:TranslitAlphabet.Greek}}" />
+            <RadioButton Classes="segment" Content="German umlauts" IsChecked="{Binding Alphabet, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:TranslitAlphabet.German}}" />
+          </WrapPanel>
+        </StackPanel>
+        <StackPanel>
+          <TextBlock Classes="label" Text="Your own replacements" />
+          <TextBox AutomationProperties.Name="Your own replacements" Classes="mono" Text="{Binding CustomPairs}" Watermark="e.g. &amp;=and, @=at" />
+        </StackPanel>
+        <TextBlock Classes="faint" FontSize="11.5" TextWrapping="Wrap"
+                   Text="“Everything to ASCII” handles Cyrillic, Greek, ligatures like æ and ø, and accents, then drops anything else that is not plain ASCII." />
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- Randomize -->
+    <DataTemplate DataType="rules:RandomizeRule">
+      <StackPanel Spacing="14">
+        <Grid ColumnDefinitions="140,10,*">
+          <StackPanel>
+            <TextBlock Classes="label" Text="Length" />
+            <NumericUpDown AutomationProperties.Name="Length" Value="{Binding Length}" Minimum="1" Maximum="64" FormatString="0" />
+          </StackPanel>
+          <StackPanel Grid.Column="2">
+            <TextBlock Classes="label" Text="Separator" />
+            <TextBox AutomationProperties.Name="Separator" Classes="mono" Text="{Binding Separator}" />
+          </StackPanel>
+        </Grid>
+        <StackPanel>
+          <TextBlock Classes="label" Text="Characters" />
+          <WrapPanel>
+            <RadioButton Classes="segment" Content="a-z 0-9" IsChecked="{Binding Charset, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:RandomCharset.LettersAndDigits}}" />
+            <RadioButton Classes="segment" Content="0-9" IsChecked="{Binding Charset, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:RandomCharset.Digits}}" />
+            <RadioButton Classes="segment" Content="a-z" IsChecked="{Binding Charset, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:RandomCharset.Lowercase}}" />
+            <RadioButton Classes="segment" Content="a-z A-Z" IsChecked="{Binding Charset, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:RandomCharset.Letters}}" />
+            <RadioButton Classes="segment" Content="hex" IsChecked="{Binding Charset, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:RandomCharset.Hex}}" />
+          </WrapPanel>
+        </StackPanel>
+        <StackPanel>
+          <TextBlock Classes="label" Text="Place it" />
+          <WrapPanel>
+            <RadioButton Classes="segment" Content="Before name" IsChecked="{Binding Placement, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:NumberPlacement.Prefix}}" />
+            <RadioButton Classes="segment" Content="After name" IsChecked="{Binding Placement, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:NumberPlacement.Suffix}}" />
+            <RadioButton Classes="segment" Content="Replace name" IsChecked="{Binding Placement, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:NumberPlacement.Replace}}" />
+          </WrapPanel>
+        </StackPanel>
+        <Button Classes="soft" HorizontalAlignment="Left" Click="OnReshuffle" AutomationProperties.Name="Reshuffle">
+          <StackPanel Orientation="Horizontal" Spacing="7">
+            <TextBlock Classes="icon" Text="&#xE8B1;" FontSize="12" />
+            <TextBlock Text="Reshuffle" />
+          </StackPanel>
+        </Button>
+        <TextBlock Classes="faint" FontSize="11.5" TextWrapping="Wrap"
+                   Text="The random text stays the same while you edit, so what you preview is what you get. Reshuffle to roll new values." />
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- List of names -->
+    <DataTemplate DataType="rules:ListRule">
+      <StackPanel Spacing="14">
+        <StackPanel>
+          <TextBlock Classes="label" Text="How to use the list" />
+          <WrapPanel>
+            <RadioButton Classes="segment" Content="New names, in list order" IsChecked="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:ListMode.NamesInOrder}}" />
+            <RadioButton Classes="segment" Content="Old → new mapping" IsChecked="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:ListMode.Mapping}}" />
+          </WrapPanel>
+        </StackPanel>
+        <StackPanel>
+          <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,5">
+            <TextBlock Classes="label" Text="Names, one per line" Margin="0" VerticalAlignment="Bottom" />
+            <Button Grid.Column="1" Classes="ghost" Padding="8,3" Click="OnImportList" AutomationProperties.Name="Import from file">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Classes="icon" Text="&#xE8E5;" FontSize="12" />
+                <TextBlock Text="Import .txt / .csv" FontSize="12" />
+              </StackPanel>
+            </Button>
+          </Grid>
+          <TextBox AutomationProperties.Name="Names, one per line" Classes="mono tokens" Text="{Binding Lines}" AcceptsReturn="True" TextWrapping="NoWrap"
+                   MinHeight="140" MaxHeight="260" VerticalContentAlignment="Top"
+                   Watermark="Holiday 01&#x0a;Holiday 02&#x0a;&#x2026;" />
+        </StackPanel>
+        <CheckBox Content="Keep each file's extension" IsChecked="{Binding KeepExtension}" />
+        <TextBlock Classes="faint" FontSize="11.5" TextWrapping="Wrap"
+                   Text="In list order, line 1 names the first file in the list, and so on. For a mapping, write old name, then a tab, comma, | or -> and the new name. Tokens work in both." />
+      </StackPanel>
+    </DataTemplate>
+    <!-- JavaScript -->
+    <DataTemplate DataType="rules:ScriptRule">
+      <StackPanel Spacing="12">
+        <TextBox AutomationProperties.Name="Script" Classes="mono" Text="{Binding Script}" AcceptsReturn="True" AcceptsTab="True"
+                 TextWrapping="NoWrap" MinHeight="190" MaxHeight="340" VerticalContentAlignment="Top" FontSize="12" />
+        <Border Background="{DynamicResource DangerSoftBrush}" CornerRadius="8" Padding="10,6"
+                IsVisible="{Binding RuntimeError, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <TextBlock Text="{Binding RuntimeError}" Foreground="{DynamicResource DangerBrush}" TextWrapping="Wrap" FontSize="12" />
+        </Border>
+        <StackPanel>
+          <TextBlock Classes="label" Text="Start from an example" />
+          <WrapPanel>
+            <Button Classes="chip" Click="OnScriptExample" Tag="title">Title case words</Button>
+            <Button Classes="chip" Click="OnScriptExample" Tag="date">Date prefix</Button>
+            <Button Classes="chip" Click="OnScriptExample" Tag="season">S01E02 from 1x02</Button>
+            <Button Classes="chip" Click="OnScriptExample" Tag="slug">web-safe-slug</Button>
+            <Button Classes="chip" Click="OnScriptExample" Tag="parts">Swap at " - "</Button>
+          </WrapPanel>
+        </StackPanel>
+        <TextBlock Classes="faint" FontSize="11.5" TextWrapping="Wrap"
+                   Text="Change name and ext. Also available: number (1, 2, 3…), index, count, folderIndex, original.name / .ext / .folder / .path, size, created, modified, isFolder, token('exif:taken:yyyy-MM-dd') for any token, and pad(n, width). Scripts run sandboxed: no file or network access." />
+      </StackPanel>
+    </DataTemplate>
+  </UserControl.DataTemplates>
+
+  <ContentControl Content="{Binding}" />
+</UserControl>
