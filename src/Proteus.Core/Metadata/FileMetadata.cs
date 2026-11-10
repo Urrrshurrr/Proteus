@@ -189,12 +189,13 @@ public sealed class FileMetadata
         try
         {
             using var fs = SharedFile.OpenRead(_entry.FullPath, 1 << 16);
+            var ct = MetadataCancellation.Current;
             string? hex = algorithm switch
             {
-                "md5" => Convert.ToHexString(System.Security.Cryptography.MD5.HashData(fs)),
-                "sha1" => Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(fs)),
-                "sha256" => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(fs)),
-                "crc32" => Crc32(fs).ToString("X8", CultureInfo.InvariantCulture),
+                "md5" => HashWith(System.Security.Cryptography.HashAlgorithmName.MD5, fs, ct),
+                "sha1" => HashWith(System.Security.Cryptography.HashAlgorithmName.SHA1, fs, ct),
+                "sha256" => HashWith(System.Security.Cryptography.HashAlgorithmName.SHA256, fs, ct),
+                "crc32" => Crc32(fs, ct).ToString("X8", CultureInfo.InvariantCulture),
                 _ => null,
             };
             if (hex == null) return null;
@@ -296,7 +297,21 @@ public sealed class FileMetadata
     private static string FirstDigits(string? s) =>
         s == null ? string.Empty : new string(s.SkipWhile(c => !char.IsDigit(c)).TakeWhile(char.IsDigit).ToArray());
 
-    private static uint Crc32(Stream s)
+    /// <summary>Hashes a stream in chunks, so a newer preview can stop it part-way through a huge file.</summary>
+    private static string HashWith(System.Security.Cryptography.HashAlgorithmName name, Stream s, CancellationToken ct)
+    {
+        using var hash = System.Security.Cryptography.IncrementalHash.CreateHash(name);
+        var buf = new byte[1 << 16];
+        int n;
+        while ((n = s.Read(buf, 0, buf.Length)) > 0)
+        {
+            ct.ThrowIfCancellationRequested();
+            hash.AppendData(buf, 0, n);
+        }
+        return Convert.ToHexString(hash.GetHashAndReset());
+    }
+
+    private static uint Crc32(Stream s, CancellationToken ct)
     {
         var table = new uint[256];
         for (uint i = 0; i < 256; i++)
@@ -309,7 +324,10 @@ public sealed class FileMetadata
         var buf = new byte[1 << 16];
         int n;
         while ((n = s.Read(buf, 0, buf.Length)) > 0)
+        {
+            ct.ThrowIfCancellationRequested();
             for (int i = 0; i < n; i++) crc = table[(crc ^ buf[i]) & 0xFF] ^ (crc >> 8);
+        }
         return ~crc;
     }
 
@@ -382,5 +400,29 @@ public sealed class FileMetadata
         if (s == null) return string.Empty;
         var digits = new string(s.TakeWhile(c => !char.IsDigit(c)).ToArray());
         return new string(s.Skip(digits.Length).TakeWhile(char.IsDigit).ToArray());
+    }
+}
+
+/// <summary>
+/// The cancellation of the preview being worked out on this thread, so slow readers (hashing a
+/// large file) can stop as soon as a newer preview replaces it.
+/// </summary>
+public static class MetadataCancellation
+{
+    [ThreadStatic] private static CancellationToken _current;
+
+    public static CancellationToken Current => _current;
+
+    /// <summary>Sets the token for the current thread until the returned scope is disposed.</summary>
+    public static Scope Use(CancellationToken ct)
+    {
+        var previous = _current;
+        _current = ct;
+        return new Scope(previous);
+    }
+
+    public readonly struct Scope(CancellationToken previous) : IDisposable
+    {
+        public void Dispose() => _current = previous;
     }
 }

@@ -37,6 +37,8 @@ public sealed class PresetStore
         File.WriteAllText(PathFor(name), JsonSerializer.Serialize(preset, RuleJson.Options));
     }
 
+    public bool Exists(string name) => File.Exists(PathFor(name));
+
     public Preset? Load(string name)
     {
         var path = PathFor(name);
@@ -52,7 +54,8 @@ public sealed class PresetStore
 
     private string PathFor(string name)
     {
-        var safe = string.Concat(name.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)).Trim();
+        // The Windows rules, on every system, so a preset name maps to the same file everywhere.
+        var safe = string.Concat(name.Select(c => c < 32 || "<>:\"/\\|?*".Contains(c) ? '_' : c)).Trim().TrimEnd('.');
         return Path.Combine(_folder, (safe.Length == 0 ? "preset" : safe) + ".json");
     }
 }

@@ -66,6 +66,7 @@ public static class RenamePipeline
     public static PreviewResult Preview(IReadOnlyList<FileEntry> files, IReadOnlyList<bool> included,
         IReadOnlyList<RenameRule> rules, BatchOptions? options, CancellationToken ct = default)
     {
+        using var _ = Proteus.Core.Metadata.MetadataCancellation.Use(ct);
         var contexts = BuildContexts(files, included);
         var names = new string?[files.Count];
         var dirs = new string[files.Count];
@@ -146,7 +147,7 @@ public static class RenamePipeline
         if (problem != null || string.IsNullOrWhiteSpace(options.SubfolderTemplate)) return (baseDir, problem);
         // Backslashes are folder separators here, not token escapes.
         var expanded = TokenEngine.Expand(options.SubfolderTemplate.Replace('\\', '/'), ctx);
-        var segments = expanded.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries)
+        var segments = expanded.Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries)
             .Select(SafeSegment).Where(s => s.Length > 0);
         return (Path.Combine([baseDir, .. segments]), null);
     }
@@ -159,9 +160,19 @@ public static class RenamePipeline
         int colon = dest.IndexOf(':');
         if (dest.IndexOfAny(['<', '>', '"', '|', '?', '*']) >= 0 || (colon >= 0 && colon != 1) || dest.Any(c => c < 32))
             return (fileDirectory, "The destination folder contains characters Windows does not allow");
+        // "C:Sorted" means "Sorted inside whatever folder was last used on C:", which is never what
+        // anyone wants from a rename tool.
+        if (colon == 1 && (dest.Length == 2 || (dest[2] != '\\' && dest[2] != '/')))
+            return (fileDirectory, @"Write the destination as a full path, like C:\Sorted");
         try
         {
-            var full = Path.GetFullPath(Path.IsPathFullyQualified(dest) ? dest : Path.Combine(fileDirectory, dest));
+            string combined;
+            if (Path.IsPathFullyQualified(dest)) combined = dest;
+            // "\Sorted" is a folder at the top of each file's own drive, not of Proteus's drive.
+            else if ((dest[0] is '\\' or '/') && !dest.StartsWith(@"\\", StringComparison.Ordinal) && !dest.StartsWith("//", StringComparison.Ordinal))
+                combined = Path.Combine(Path.GetPathRoot(fileDirectory) ?? fileDirectory, dest.TrimStart('\\', '/'));
+            else combined = Path.Combine(fileDirectory, dest);
+            var full = Path.GetFullPath(combined);
             if (File.Exists(full)) return (fileDirectory, "The destination is a file, not a folder");
             return (full, null);
         }

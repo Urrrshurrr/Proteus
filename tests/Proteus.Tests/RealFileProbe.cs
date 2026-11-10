@@ -11,7 +11,17 @@ namespace Proteus.Tests;
 /// </summary>
 public class RealFileProbe(ITestOutputHelper output)
 {
-    [Fact]
+    /// <summary>Shows as skipped, not passed, when there is nothing to probe.</summary>
+    public sealed class ProbeFactAttribute : FactAttribute
+    {
+        public ProbeFactAttribute()
+        {
+            if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PROTEUS_PROBE")))
+                Skip = "Manual check: set PROTEUS_PROBE to a ';'-separated list of files to run it.";
+        }
+    }
+
+    [ProbeFact]
     public void Probe()
     {
         var list = Environment.GetEnvironmentVariable("PROTEUS_PROBE");

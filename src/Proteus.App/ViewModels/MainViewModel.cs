@@ -216,19 +216,40 @@ public sealed partial class MainViewModel : ObservableObject
         var list = paths.ToList();
         if (list.Count == 0) return;
         var known = new HashSet<string>(_known, StringComparer.OrdinalIgnoreCase);
+        _scanCts?.Cancel();
+        var scan = _scanCts = new CancellationTokenSource();
+        var ct = scan.Token;
+        bool scanning = list.Any(Directory.Exists) && !foldersAsItems;
+        if (scanning) ShowNotice("Looking for files\u2026 Close this message to stop.", sticky: true);
         // Finding files and reading their details happens off the UI thread.
-        var (entries, found) = await Task.Run(() =>
+        List<FileEntry> entries;
+        int found;
+        try
         {
-            var paths = Expand(list, recurse, foldersAsItems);
-            var made = new List<FileEntry>();
-            foreach (var p in paths)
+            (entries, found) = await Task.Run(() =>
             {
-                if (!known.Add(p)) continue;
-                try { made.Add(new FileEntry(p)); }
-                catch (Exception) { }
-            }
-            return (made, paths.Count);
-        });
+                var paths = Expand(list, recurse, foldersAsItems, ct);
+                var made = new List<FileEntry>();
+                foreach (var p in paths)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    if (!known.Add(p)) continue;
+                    try { made.Add(new FileEntry(p)); }
+                    catch (Exception) { }
+                }
+                return (made, paths.Count);
+            }, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            if (ReferenceEquals(_scanCts, scan)) ShowNotice("Stopped adding files. Nothing was added.");
+            return;
+        }
+        finally
+        {
+            if (ReferenceEquals(_scanCts, scan)) _scanCts = null;
+        }
+        if (scanning && Notice?.StartsWith("Looking for files", StringComparison.Ordinal) == true) Notice = null;
         int added = 0;
         foreach (var entry in entries)
         {
@@ -250,32 +271,49 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    private static List<string> Expand(List<string> paths, bool recurse, bool foldersAsItems)
+    private CancellationTokenSource? _scanCts;
+
+    /// <summary>
+    /// Files named directly are always added. Inside a folder, hidden and system files are skipped
+    /// (as Explorer does by default, and as Match names from a folder does), and folder links
+    /// (junctions, symbolic links) are not followed, so a scan can't loop or wander off.
+    /// </summary>
+    private static List<string> Expand(List<string> paths, bool recurse, bool foldersAsItems, CancellationToken ct = default)
     {
         var result = new List<string>();
+        var opts = new EnumerationOptions
+        {
+            RecurseSubdirectories = false,
+            IgnoreInaccessible = true,
+            AttributesToSkip = FileAttributes.System | FileAttributes.Hidden,
+        };
+        void Scan(string dir)
+        {
+            ct.ThrowIfCancellationRequested();
+            List<string> files;
+            try { files = Directory.EnumerateFiles(dir, "*", opts).ToList(); }
+            catch (Exception) { return; }
+            files.Sort(NaturalComparer.Instance);
+            result.AddRange(files);
+            if (!recurse) return;
+            List<DirectoryInfo> subs;
+            try { subs = new DirectoryInfo(dir).EnumerateDirectories("*", opts).ToList(); }
+            catch (Exception) { return; }
+            subs.Sort((a, b) => NaturalComparer.Instance.Compare(a.Name, b.Name));
+            foreach (var sub in subs)
+            {
+                try { if (sub.LinkTarget != null) continue; }
+                catch (Exception) { continue; }
+                Scan(sub.FullName);
+            }
+        }
         foreach (var p in paths)
         {
             if (File.Exists(p)) result.Add(Path.GetFullPath(p));
             else if (Directory.Exists(p))
             {
-                if (foldersAsItems)
-                {
-                    result.Add(Path.GetFullPath(p));
-                    continue;
-                }
-                try
-                {
-                    var opts = new EnumerationOptions
-                    {
-                        RecurseSubdirectories = recurse,
-                        IgnoreInaccessible = true,
-                        AttributesToSkip = FileAttributes.System,
-                    };
-                    var files = Directory.EnumerateFiles(p, "*", opts).ToList();
-                    files.Sort(NaturalComparer.Instance);
-                    result.AddRange(files);
-                }
-                catch (Exception) { }
+                if (foldersAsItems) result.Add(Path.GetFullPath(p));
+                else Scan(Path.GetFullPath(p));
             }
         }
         return result;
@@ -599,7 +637,10 @@ public sealed partial class MainViewModel : ObservableObject
                 return;
             }
 
-            var result = await RenameExecutor.ExecuteAsync(ops, new Progress<double>(p => Progress = p), default, record.Id);
+            _batchCts = new CancellationTokenSource();
+            CanStopBatch = true;
+            var result = await RenameExecutor.ExecuteAsync(ops, new Progress<double>(p => Progress = p), _batchCts.Token, record.Id);
+            CanStopBatch = false;
             foreach (var r in result.Results.Where(r => r.Success))
             {
                 if (!bySource.TryGetValue(r.Operation.Source, out var item)) continue;
@@ -621,7 +662,13 @@ public sealed partial class MainViewModel : ObservableObject
             var done = Options.Mode switch { BatchMode.Copy => "Copied", BatchMode.Move => "Moved", _ => "Renamed" };
             if (ops.All(o => o.Kind == OperationKind.Properties)) done = "Updated";
             var warning = result.Results.FirstOrDefault(r => r.Success && r.Error != null);
-            if (result.Failed == 0 && warning == null)
+            if (result.Cancelled)
+            {
+                int notStarted = ops.Count - result.Results.Count;
+                ShowNotice($"Stopped. {done} {result.Succeeded:N0}; {notStarted:N0} not started{(result.Failed > 0 ? $", {result.Failed:N0} failed" : "")}. Undo puts back what was done.",
+                    isError: true, canUndo: result.Succeeded > 0, sticky: true);
+            }
+            else if (result.Failed == 0 && warning == null)
                 ShowNotice($"{done} {result.Succeeded:N0} item{(result.Succeeded == 1 ? "" : "s")}.", canUndo: result.Succeeded > 0);
             else if (result.Failed == 0)
                 ShowNotice($"{done} {result.Succeeded:N0}. {Path.GetFileName(warning!.Operation.Target)}: {warning.Error}",
@@ -639,10 +686,25 @@ public sealed partial class MainViewModel : ObservableObject
         }
         finally
         {
+            CanStopBatch = false;
+            _batchCts?.Dispose();
+            _batchCts = null;
             IsBusy = false;
             RefreshVisible();
             SchedulePreview();
         }
+    }
+
+    private CancellationTokenSource? _batchCts;
+
+    /// <summary>True while a batch runs and can still be stopped between items.</summary>
+    [ObservableProperty] private bool _canStopBatch;
+
+    [RelayCommand]
+    private void StopBatch()
+    {
+        _batchCts?.Cancel();
+        CanStopBatch = false;
     }
 
     [RelayCommand]
@@ -733,6 +795,14 @@ public sealed partial class MainViewModel : ObservableObject
         if (name.Length == 0) { ShowNotice("Type a name for the preset first.", isError: true); return; }
         try
         {
+            // Saving over an existing preset needs a second click.
+            if (_presets.Exists(name) && !string.Equals(_confirmOverwrite, name, StringComparison.OrdinalIgnoreCase))
+            {
+                _confirmOverwrite = name;
+                ShowNotice($"A preset called \u201C{name}\u201D already exists. Click Save again to replace it.", isError: true, sticky: true);
+                return;
+            }
+            _confirmOverwrite = null;
             _presets.Save(name, Rules, Options);
             NewPresetName = string.Empty;
             RefreshPresets();
@@ -740,6 +810,10 @@ public sealed partial class MainViewModel : ObservableObject
         }
         catch (Exception ex) { ReportError("Could not save the preset", ex); }
     }
+
+    private string? _confirmOverwrite;
+
+    partial void OnNewPresetNameChanged(string value) => _confirmOverwrite = null;
 
     [RelayCommand]
     private void LoadPreset(string? name)
@@ -751,9 +825,18 @@ public sealed partial class MainViewModel : ObservableObject
         if (preset == null) return;
         Rules.Clear();
         foreach (var r in preset.Rules) Rules.Add(r);
-        if (preset.Options != null) Options = preset.Options;
+        // A preset also carries the mode, destination and date/attribute settings; say so plainly,
+        // since a preset from someone else could switch Proteus to moving files.
+        var also = new List<string>();
+        if (preset.Options != null)
+        {
+            Options = preset.Options;
+            if (Options.Mode != BatchMode.Rename) also.Add(Options.ModeSummary + (Options.DestinationFolder.Length > 0 ? $" ({Options.DestinationFolder})" : ""));
+            if (Options.ChangesProperties) also.Add(Options.PropertiesSummary.ToLowerInvariant());
+        }
         SelectedRule = Rules.FirstOrDefault();
-        ShowNotice($"Loaded preset “{name}”.");
+        if (also.Count == 0) ShowNotice($"Loaded preset “{name}”.");
+        else ShowNotice($"Loaded preset “{name}”. It also sets: {string.Join("; ", also)}. Check the preview before you start.", isError: true, sticky: true);
     }
 
     [RelayCommand]
@@ -778,7 +861,11 @@ public sealed partial class MainViewModel : ObservableObject
     private void ToggleTheme() => IsDark = !IsDark;
 
     [RelayCommand]
-    private void DismissNotice() => Notice = null;
+    private void DismissNotice()
+    {
+        Notice = null;
+        _scanCts?.Cancel(); // closing the "Looking for files" message stops the scan
+    }
 
     private void ApplyTheme()
     {

@@ -438,6 +438,7 @@ public static class RenameExecutor
     /// <summary>True when the path is on a drive that normally has a Recycle Bin (a local fixed disk).</summary>
     public static bool HasRecycleBin(string path)
     {
+        if (path.StartsWith(@"\\", StringComparison.Ordinal) || path.StartsWith("//", StringComparison.Ordinal)) return false;
         try
         {
             var root = Path.GetPathRoot(Path.GetFullPath(path));

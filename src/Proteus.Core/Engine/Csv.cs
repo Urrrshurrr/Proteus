@@ -59,9 +59,16 @@ public static class Csv
     public static string Write(IEnumerable<IEnumerable<string>> rows)
     {
         var sb = new StringBuilder();
-        foreach (var r in rows) sb.Append(string.Join(",", r.Select(Escape))).Append("\r\n");
+        foreach (var r in rows) sb.Append(string.Join(",", r.Select(v => Escape(NeutraliseFormula(v))))).Append("\r\n");
         return sb.ToString();
     }
+
+    /// <summary>
+    /// Spreadsheets run a cell that starts with = + - or @ as a formula. A leading apostrophe makes
+    /// Excel show it as plain text instead (and hides the apostrophe).
+    /// </summary>
+    public static string NeutraliseFormula(string value) =>
+        value.Length > 0 && value[0] is '=' or '+' or '-' or '@' or '\t' or '\r' ? "'" + value : value;
 
     /// <summary>
     /// Reads a rename list: each row is "current file (full path or name), new name".

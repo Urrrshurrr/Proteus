@@ -503,7 +503,7 @@
 
                 <Expander Header="Only apply to some files" IsExpanded="{Binding HasScope, Mode=OneTime}">
                   <StackPanel Spacing="10">
-                    <TextBox Classes="mono" Text="{Binding ScopePattern}" Watermark="*.jpg; *.png   (matched against the current name)" />
+                    <TextBox Classes="mono" Text="{Binding ScopePattern}" Watermark="*.jpg; *.png   (matched against the original name)" />
                     <WrapPanel>
                       <CheckBox Content="Pattern is a regular expression" IsChecked="{Binding ScopeIsRegex}" Margin="0,0,16,0" />
                       <CheckBox Content="Apply to files that do NOT match" IsChecked="{Binding ScopeInvert}" />
@@ -748,6 +748,10 @@
           </Button.Flyout>
         </Button>
         <ProgressBar Width="140" Minimum="0" Maximum="1" Value="{Binding Progress}" IsVisible="{Binding IsBusy}" VerticalAlignment="Center" />
+        <Button Classes="soft" Command="{Binding StopBatchCommand}" IsVisible="{Binding CanStopBatch}" VerticalAlignment="Center"
+                AutomationProperties.Name="Stop after the current item" ToolTip.Tip="Stop after the current item. Everything done so far can be undone from History.">
+          <TextBlock Text="Stop" />
+        </Button>
         <Button Classes="primary" Command="{Binding RenameCommand}" IsEnabled="{Binding CanRename}" Padding="20,10" HotKey="Ctrl+Enter"
                 AutomationProperties.Name="Rename now (Ctrl+Enter)" ToolTip.Tip="Rename now (Ctrl+Enter)">
           <StackPanel Orientation="Horizontal" Spacing="8">

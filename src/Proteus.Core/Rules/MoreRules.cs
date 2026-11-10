@@ -401,7 +401,7 @@ public sealed partial class TransliterateRule : RenameRule
         if (_customKey == CustomPairs) return _custom;
         _customKey = CustomPairs;
         var list = new List<(string, string)>();
-        foreach (var item in CustomPairs.Split([',', '\n', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (var item in CustomPairs.Split(new[] { ',', '\n', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             int eq = item.IndexOf('=');
             if (eq > 0) list.Add((item[..eq].Trim(), item[(eq + 1)..].Trim()));
