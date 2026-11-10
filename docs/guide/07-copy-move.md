@@ -27,6 +27,9 @@ accident from a previous session.
 - **Leave it empty** to use each file's own folder. That's useful together with subfolders, for
   example to sort a folder's contents into subfolders right where they are.
 - A **relative** name such as `Sorted` means a folder called `Sorted` *inside each file's own folder*.
+- A path starting with `\`, such as `\Sorted`, means a folder at the top of each file's own drive.
+- A drive letter needs a backslash: write `C:\Sorted`, not `C:Sorted` (Proteus refuses the second
+  form because Windows reads it in a confusing way).
 - Folders that don't exist are created. If you undo, folders Proteus created are removed again (when empty).
 
 The **Folder** column shows `→ destination` for every file, and *Step by step* shows the full destination.
@@ -56,15 +59,38 @@ get a `_` added, and empty parts are skipped.
 | **Add (2), (3)…** | Proteus picks the next free name: `photo (2).jpg`, `photo (3).jpg`. |
 
 The *Add (2), (3)* option applies in all modes, including rename in place. Proteus **never**
-overwrites an existing file in any mode.
+overwrites an existing file or folder in any mode. When copying or moving folders, a folder that
+is already at the destination is never touched, even if the copy fails part-way: Proteus only
+cleans up folders it created itself.
+
+## Copying and moving folders
+
+- A folder can't be copied or moved into itself or into one of its own subfolders.
+- Folder links (junctions and symbolic links) inside a copied folder are skipped and listed in the
+  results, so a link can't pull in files from somewhere else. A folder that contains links can't
+  be moved to another drive.
+- When a folder is moved to another drive, Proteus copies it, then deletes the original. If the
+  original can't be fully deleted (for example a file is open), the copy is kept and you're told
+  what was left behind.
+
+## Stopping a batch
+
+While a batch runs (in any mode, including rename in place), click **Stop**. Proteus finishes the
+item it is on and stops there. Items already done stay done (and can be undone from History);
+the rest are left as they were.
 
 ## Undo
 
 - **Move / rename**: files go back where they came from, with their old names, and created folders are removed.
-- **Copy**: the copies are sent to the **Recycle Bin**, with two safeguards:
-  - A copy that has been **changed since** (different size or modified time) is left in place, and you're told.
+- **Copy**: the copies are sent to the **Recycle Bin**, with these safeguards:
+  - A copy that has been **changed since** (different size or modified time; for a folder, any file
+    added, removed or changed inside it) is left in place, and you're told.
   - On drives **without a Recycle Bin** (network shares, USB sticks), copies are left in place
     rather than deleted permanently, and you're told so you can delete them yourself.
+  - If a copy is too big for the Recycle Bin, Windows asks before deleting it permanently. Say no
+    and the copy stays.
+- If some items can't be put back, the rest still are, and the batch is marked *partly undone* in
+  History. Fix the problem and press **Undo** again to finish.
 
 ## Examples
 

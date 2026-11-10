@@ -188,7 +188,10 @@ scan003.pdf,Receipt - Hardware store
 - The current file can be a **full path**, or a **name relative to the CSV's own folder**
   (`scan003.pdf` above is looked for next to the CSV file).
 - The new name may include the extension or not. With *Keep each file's extension* on (the default),
-  the extension is kept either way.
+  the file's own extension is always kept: `report.txt` mapped to `Summary` or `Summary.txt` gives
+  `Summary.txt`, but mapped to `Summary.md` gives `Summary.md.txt`. To change extensions from the
+  list, untick *Keep each file's extension* in the List of names rule and write every new name
+  with its extension.
 - The separator can be a comma, semicolon or tab, so you can save as CSV from Excel in any region or paste tab-separated text.
 - Quotes work as usual for names containing commas: `"Smith, John.pdf"`.
 - Only the file-name part of a new name is used. To put files into other folders, combine with [Move](07-copy-move.md).
@@ -223,7 +226,9 @@ the mapping), fix conflicts, and then press **Rename**.
 | Dates & attributes | Planned date/attribute changes |
 | Message | The reason for any problem |
 
-The file is UTF-8, so Excel shows accented and non-Latin names correctly.
+The file is UTF-8, so Excel shows accented and non-Latin names correctly. A value that starts with
+`=`, `+`, `-` or `@` gets a leading `'`, so Excel shows it as text instead of running it as a formula
+(remove the `'` if you import that column back).
 
 A round trip works well: export, edit the *New path* column in Excel, then import the two columns back.
 

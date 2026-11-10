@@ -37,11 +37,11 @@ The easy way to use them: click a text box, open **Insert a token** in the rule 
 | `<fullname>` | Original name with extension | `IMG_2041.jpg` |
 | `<parent>` | Containing folder's name | `Vacation` |
 | `<parent:2>` | Folder two levels up | `Photos` |
-| `<drive>` | Drive letter | `D` |
+| `<drive>` | Drive letter, or `server-share` for a network path like `\\server\share` | `D` |
 | `<size>` | Size, human readable | `2.4 MB` |
 | `<size:b>` `<size:kb>` `<size:mb>` `<size:gb>` | Size in a fixed unit | `2516` |
 | `<type>` | Windows file type | `PDF Document` |
-| `<owner>` | Owner account | `steven` |
+| `<owner>` | Owner account | `alex` |
 | `<firstline>` | First non-empty line of a text file (up to 120 characters; `#` heading marks removed) | `Shopping list` |
 | `<hash:md5>` `<hash:sha1>` `<hash:sha256>` `<crc32>` | Content hash (lowercase hex) | `9e107d9d…` |
 | `<hash:md5:8>` | First 8 characters of the hash | `9e107d9d` |
@@ -62,7 +62,7 @@ The easy way to use them: click a text box, open **Insert a token** in the rule 
 | `<modified:yyyy-MM-dd>` | Last modified |
 | `<created:yyyy-MM-dd>` | Created |
 | `<accessed:yyyy-MM-dd>` | Last opened |
-| `<now:yyyy-MM-dd>` / `<now:HHmmss>` | Right now |
+| `<now:yyyy-MM-dd>` / `<now:HHmmss>` | When the preview was made (the same moment for every file in the batch) |
 
 ### Date formats
 
@@ -78,6 +78,10 @@ The easy way to use them: click a text box, open **Insert a token** in the rule 
 Anything else is copied as typed: `<modified:yyyy-MM-dd_HHmm>` → `2024-07-04_1405`. A `/` or `:`
 produced by a date becomes `-` or `.`, because Windows doesn't allow them in names.
 
+Month and day names follow your Windows language, but dates always use the everyday (Gregorian)
+calendar, so a PC set to Thai or Saudi Arabic regional settings still gives `2024`, not the year in
+another calendar.
+
 ## Photo (EXIF)
 
 For JPEG, HEIC, PNG, TIFF, WebP and camera RAW files (CR2, CR3, NEF, ARW, DNG, ORF, RW2, RAF…).
@@ -87,7 +91,7 @@ For JPEG, HEIC, PNG, TIFF, WebP and camera RAW files (CR2, CR3, NEF, ARW, DNG, O
 | `<exif:taken:yyyy-MM-dd_HHmmss>` | Date taken (falls back to *modified* when missing) |
 | `<exif:camera>` / `<exif:make>` | Camera model / maker |
 | `<exif:lens>` | Lens model |
-| `<exif:iso>` `<exif:fnumber>` `<exif:exposure>` `<exif:focal>` | ISO, aperture, shutter speed, focal length |
+| `<exif:iso>` `<exif:fnumber>` `<exif:exposure>` `<exif:focal>` | ISO, aperture (`f2.8`), shutter speed (`1-250 sec`), focal length |
 | `<exif:width>` `<exif:height>` | Pixel size |
 
 ## Video
@@ -133,6 +137,9 @@ use Windows' own reader.
 | `<doc:pages>` `<doc:words>` `<doc:slides>` | Counts (`<doc:pages:3>` pads) |
 | `<doc:revision>` `<doc:app>` | Revision number, program that made it |
 | `<doc:created:yyyy-MM-dd>` `<doc:modified:yyyy-MM-dd>` | Document dates (from inside the file) |
+
+Password-protected (encrypted) PDFs give empty document tokens, because their details can't be
+read without the password.
 
 ## Any Windows property
 

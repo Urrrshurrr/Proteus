@@ -25,6 +25,7 @@ Hover a *Conflict* or *Invalid* row to read the exact reason. The bottom bar cou
 | *Would overwrite a file that is not being renamed* | Another file in the plan can't move out of the way, so this one is blocked too. Fix the other file first. |
 | *A copy needs a different name or folder* | In copy mode, change the name or pick a destination |
 | *Its folder is also being renamed in this batch* | Rename the folder and its contents in two separate batches |
+| *Another item in this batch goes inside this folder's new location* | A folder would be moved to where other items in the batch are also going. Do them in separate batches |
 
 ## Invalid names
 
@@ -33,19 +34,25 @@ Proteus checks every new name against Windows' rules before anything happens:
 - Not empty, and at most 255 characters.
 - None of `\ / : * ? " < > |` and no control characters.
 - Doesn't end with a dot or a space.
-- Not a reserved device name: `CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9` (with any extension).
+- Not a reserved device name: `CON`, `PRN`, `AUX`, `NUL`, `CONIN$`, `CONOUT$`, `COM0`–`COM9`,
+  `LPT0`–`LPT9`, or `COM`/`LPT` followed by `¹`, `²` or `³` (with any extension).
+- A folder can't go inside itself (for example, moving `D:\Photos` into `D:\Photos\2024`).
 - Destination folders must be valid paths and must not be existing *files*.
 
 ## What Proteus does to keep files safe
 
 - **Nothing happens until you press the button.** The preview is the exact plan.
 - **The preview is always current.** If you change something and press Rename straight away, Proteus waits for the new preview first.
-- **No overwriting, ever.** Every rename, move and copy refuses to replace an existing file.
+- **No overwriting, ever.** Every rename, move and copy refuses to replace an existing file or folder,
+  and a failed folder copy only cleans up what Proteus itself created.
 - **Swaps and cycles work.** `a → b` and `b → a` in one batch, shifting numbers up by one, or
   changing only the case (`photo.JPG` → `photo.jpg`) all go safely through temporary names.
 - **One failure doesn't stop the rest.** If a file is locked or access is denied, it's reported and the others continue.
 - **Everything is recorded first.** The plan is written to History before the first file is touched, so even a crash can be undone.
-- **Undo is careful.** It only moves back files that are still where Proteus put it, and it never permanently deletes a copy.
+- **Undo is careful.** It only moves back files that are still where Proteus put them, and it never
+  permanently deletes a copy on its own. If only some items can be put back, the batch stays open as
+  *partly undone* so you can try the rest again.
+- **You can stop a batch.** The **Stop** button finishes the current item and stops; what was done can be undone.
 - **Sandboxed scripts.** JavaScript rules can't touch files or the network.
 - **Long paths** (over 260 characters) are supported.
 

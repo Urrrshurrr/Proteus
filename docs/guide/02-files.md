@@ -21,7 +21,9 @@ Files already in the list are never added twice. Files are added in natural orde
 | **Include files in subfolders** | When adding a folder, also add files in all of its subfolders (on by default). |
 | **Add folders themselves, to rename them** | Add the folder as one item so you can rename the *folder*, not its contents. |
 
-> Files marked as *System* by Windows are skipped when adding a folder.
+> When adding a folder, files and folders marked *Hidden* or *System* by Windows are skipped, and so
+> are folder links (junctions and symbolic links), so a link can never pull in files from somewhere
+> else. Adding a big folder shows **Looking for files…**; close that message to stop the scan.
 
 ## Including and excluding files
 
@@ -51,7 +53,7 @@ Click a column header (**Current name**, **New name**, **Status**, **Folder**) t
 - Type in **Filter by name** to show only rows whose current or new name contains that text.
 - Turn on **Changes only** to hide rows that won't change.
 
-Filtering only changes what you see. Hidden files are still part of the batch if they are ticked.
+Filtering only changes what you see. Rows the filter hides are still part of the batch if they are ticked.
 
 ## Reading a row
 

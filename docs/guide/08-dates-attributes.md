@@ -41,10 +41,10 @@ Several patterns can be separated by `;`.
 | `Scan 2024-01-31.pdf` | `yyyy-MM-dd` |
 | `Screen Recording 2024-01-31 093000.mp4` | `yyyy-MM-dd HHmmss` |
 | `PXL_20240131_093000123.jpg` | `yyyyMMdd` (the time here runs into extra digits, so match the day only) |
+| `Screenshot 31.01.2024.png` | `dd.MM.yyyy` |
 
 A pattern only matches when it isn't directly touching other digits. Use the date part alone when
 the time has extra digits.
-| `Screenshot 31.01.2024.png` | `dd.MM.yyyy` |
 
 Files where no date is found, or where the metadata is missing, are left unchanged.
 

@@ -56,6 +56,9 @@ The pattern is checked against the file's **original** name (with extension), an
 matter. Rules with a filter show a small funnel icon in the stack. If a regular expression is
 invalid, the rule is skipped and a warning appears under its editor.
 
+A Numbering or List of names rule with a filter counts only the files it applies to, so matching
+files get 1, 2, 3 with no gaps.
+
 ## Rules see the original *and* the current name
 
 Most rules change the name as it stands after the rules above them. Tokens like `<name>` always
@@ -66,7 +69,8 @@ you, for example, clean up a name with early rules and then build
 ## When a rule can't do its job
 
 If a rule fails for a file (for example, a script error), that one file is marked **Invalid**, with
-the rule's name and the reason. Other files are unaffected, and nothing is renamed until you fix it.
+the rule's name and the reason. When the same rule fails for many files, the rule shows the first
+problem and how many files failed. Other files are unaffected, and nothing is renamed until you fix it.
 
 ---
 

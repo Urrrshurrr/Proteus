@@ -371,7 +371,7 @@
         <StackPanel>
           <TextBlock Classes="label" Text="Convert" />
           <WrapPanel>
-            <RadioButton Classes="segment" Content="Everything to ASCII" IsChecked="{Binding Alphabet, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:TranslitAlphabet.AllToAscii}}" />
+            <RadioButton Classes="segment" Content="Any alphabet" IsChecked="{Binding Alphabet, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:TranslitAlphabet.AllToAscii}}" />
             <RadioButton Classes="segment" Content="Cyrillic" IsChecked="{Binding Alphabet, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:TranslitAlphabet.Cyrillic}}" />
             <RadioButton Classes="segment" Content="Greek" IsChecked="{Binding Alphabet, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:TranslitAlphabet.Greek}}" />
             <RadioButton Classes="segment" Content="German umlauts" IsChecked="{Binding Alphabet, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:TranslitAlphabet.German}}" />
@@ -382,7 +382,7 @@
           <TextBox AutomationProperties.Name="Your own replacements" Classes="mono" Text="{Binding CustomPairs}" Watermark="e.g. &amp;=and, @=at" />
         </StackPanel>
         <TextBlock Classes="faint" FontSize="11.5" TextWrapping="Wrap"
-                   Text="“Everything to ASCII” handles Cyrillic, Greek, ligatures like æ and ø, and accents, then drops anything else that is not plain ASCII." />
+                   Text="“Any alphabet” handles Cyrillic, Greek, ligatures like æ and ø, and accents. Letters it cannot convert, such as Chinese or Arabic, are kept as they are and the rule says which ones." />
       </StackPanel>
     </DataTemplate>
 

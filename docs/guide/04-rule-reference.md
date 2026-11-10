@@ -47,7 +47,10 @@ Finds text and replaces it.
 | `\s+\(\d+\)$` | | Regex | `photo (3)` → `photo` |
 | `-` | ` ` | First | `2024-01-05-notes` → `2024 01-05-notes` |
 
-> Outside regex mode, `$` in *Replace with* is just a dollar sign.
+> Outside regex mode, `$` in *Replace with* is just a dollar sign. In regex mode, a `$` that comes
+> from a token's value (for example a title like `Cash $$$`) is also kept as text; only the `$` you type
+> yourself refers to groups. If a regular expression takes too long on a name, the rule stops for
+> the rest of the preview and says so, instead of freezing Proteus.
 
 ## Insert
 
@@ -99,6 +102,9 @@ or [Trim around text](#trim-around-text).
 
 Title Case starts a new word after a space, `_`, `-`, `.`, brackets, `&` or `+`. Set **Apply to → Extension** to change only the extension's case.
 
+Case changes follow the same rules on every PC by default. Tick **Follow the Windows language's own
+case rules** if you want your language's special cases, for example Turkish, where `I` becomes `ı`.
+
 ## Numbering
 
 Adds a running number based on the **order of the list** (sort first if needed).
@@ -111,7 +117,8 @@ Adds a running number based on the **order of the list** (sort first if needed).
 | **Separator** | Text between number and name, e.g. ` - ` or `_`. |
 | **Restart numbering in each folder** | Each folder starts again at *Start at*. |
 
-Excluded (unticked) files don't use up a number. For a counter inside other text, use the `<n:3>`
+Excluded (unticked) files don't use up a number, and with **Only apply to some files** set, only the
+files the rule applies to are counted. For a counter inside other text, use the `<n:3>`
 token in [Insert](#insert) or [New name](#new-name).
 
 ## New name
@@ -142,7 +149,7 @@ A bundle of tidy-ups applied in a fixed order. Ticked by default: underscores an
 | **Also remove these characters** | Any characters you list, e.g. `#!~` |
 | **Spacing** | Single spaces only, Trim ends |
 | **Finally, replace spaces with** | e.g. `_` or `-` |
-| **Shorten to at most** | Maximum length in characters (0 = no limit) |
+| **Shorten to at most** | Maximum length in characters (0 = no limit). An emoji or accented letter is never cut in half. |
 
 Example: `Movie.Name.2010.[1080p]_(x264)` with dots → spaces, square and round removed → `Movie Name 2010`.
 
@@ -165,7 +172,9 @@ The new extension field accepts tokens. Folders are never given an extension.
 | **Minimum digits** | 3: `Track 7 of 12` → `Track 007 of 012` |
 | **Instead, remove leading zeros** | `Track 007` → `Track 7` |
 
-Padding makes names sort correctly everywhere (`2` vs `10`).
+Padding makes names sort correctly everywhere (`2` vs `10`). Every number in the name is padded,
+including each side of a decimal point: `Version 5.1` → `Version 005.001`. Use *Only apply to some
+files*, or a Replace rule with a regular expression, when only one number should change.
 
 ## Rearrange
 
@@ -181,6 +190,9 @@ Splits the name into parts and reassembles them.
 | ` - ` | `$2 - $1` | `Artist - Title` → `Title - Artist` |
 | *(empty)* | `$L, $1` | `John Ronald Tolkien` → `Tolkien, John` |
 | `_` | `$3_$2_$1` | `05_01_2024` → `2024_01_05` |
+
+A name without the separator (only one part) is left unchanged. A part that doesn't exist, such as
+`$3` in a two-part name, is empty. `$L` followed directly by a letter (`$Lx`) is just text.
 
 ## Trim around text
 
@@ -206,7 +218,7 @@ Moves part of the name to somewhere else.
 | **How many / Starting at / Count from the end** | For characters. |
 | **Text to move / Regular expression** | For text. The first match is moved. |
 | **To** | **The start**, **The end**, or **A position**. |
-| **Separator** | Placed between the moved piece and the rest (start/end only). Leftover double separators are tidied. |
+| **Separator** | Placed between the moved piece and the rest (start/end only). The gap where the piece was is closed up; the rest of the name is not touched. |
 
 | Settings | Before → After |
 |---|---|
@@ -241,14 +253,16 @@ Converts other scripts and special letters to plain Latin.
 
 | Convert | Example |
 |---|---|
-| **Everything to ASCII** (default) | `Café Ærøskøbing Łódź` → `Cafe Aeroskobing Lodz` |
+| **Any alphabet** (default) | `Café Ærøskøbing Łódź` → `Cafe Aeroskobing Lodz` |
 | **Cyrillic** | `Москва` → `Moskva` |
 | **Greek** | `Αθηνα` → `Athina` |
 | **German umlauts** | `München Straße` → `Muenchen Strasse` |
 
 **Your own replacements**: pairs like `&=and, @=at` (separate with commas, semicolons or new lines),
-applied first. "Everything to ASCII" handles Cyrillic, Greek, ligatures (`æ`, `ø`, `ł`…), accents
-and typographic quotes, then drops anything still not plain ASCII.
+applied first. "Any alphabet" handles Cyrillic (Russian, Ukrainian, Belarusian, Serbian and
+Macedonian letters), Greek, ligatures (`æ`, `ø`, `ł`…), accents and typographic quotes. Anything it
+cannot convert, such as Chinese, Arabic, Hebrew or emoji, is **kept as it is**, and the rule shows a
+warning naming those characters, so `写真.jpg` stays `写真.jpg` rather than becoming `.jpg`.
 
 ## Randomize
 

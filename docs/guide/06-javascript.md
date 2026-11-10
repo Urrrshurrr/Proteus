@@ -165,8 +165,9 @@ see it in the editor:
 Script error: undefinedThing is not defined (line 2)
 ```
 
-Any file the script fails on is marked **Invalid** in the list and won't be renamed. Fix the script
-and the preview updates at once.
+Any file the script fails on is marked **Invalid** in the list and won't be renamed. When it fails on
+more than one file, the box shows the first problem and how many files failed, for example
+`(12 files failed; the first problem is shown)`. Fix the script and the preview updates at once.
 
 ## Limits and safety
 

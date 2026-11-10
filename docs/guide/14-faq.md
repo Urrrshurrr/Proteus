@@ -42,6 +42,12 @@ resolution is available. Installing a codec pack that adds Windows property hand
 **Do I need Microsoft Office or Acrobat for document tokens?**
 No. Proteus reads Word, Excel, PowerPoint, OpenDocument and PDF properties directly.
 
+**Proteus downloaded my OneDrive files.**
+Tokens that read inside a file (hashes, `<firstline>`, photo, music, video and document tokens) need
+the file's contents. For OneDrive (or Dropbox, Google Drive…) files that are online-only, reading
+them makes Windows download them. Names, dates, sizes and the other file tokens don't. To avoid
+downloads, use only those tokens, or untick online-only files.
+
 **Can I rename folders?**
 Yes. In the `...` menu tick **Add folders themselves, to rename them**, then add the folders.
 Renaming a folder *and* files inside it in the same batch isn't allowed; do them in two batches.
@@ -51,11 +57,15 @@ Yes. Open **History** and click **Undo** on that batch.
 
 **Undo says a file "is no longer where Proteus put it".**
 It was moved, renamed or deleted outside Proteus after the batch. Proteus leaves it alone rather
-than guessing.
+than guessing. Everything else in the batch is still put back, and the batch shows as *partly
+undone* in History, so you can press **Undo** again once the problem is fixed.
 
 **Undo left my copies in place.**
-Either the copy was edited after it was made, or it's on a network/USB drive with no Recycle Bin.
-Proteus never deletes those permanently, so delete them yourself if you want them gone.
+Either the copy was changed after it was made (for a copied folder: a file added, removed or edited
+inside it), the copy was made by an older version that didn't record how it looked, or it's on a
+network/USB drive with no Recycle Bin. If a copy is too big for the Recycle Bin, Windows asks before
+deleting it for good; say no and it stays. Proteus never deletes copies permanently on its own, so
+delete them yourself if you want them gone.
 
 **Proteus says a batch was interrupted.**
 It was closed or the PC stopped mid-batch. Open **History** and **Undo** the interrupted batch to

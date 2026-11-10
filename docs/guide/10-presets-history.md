@@ -10,12 +10,12 @@ name, so you can reuse them with one click.
 | Action | How |
 |---|---|
 | Save | **Presets** → type a name under *Save current rules* → **Save** |
-| Load | **Presets** → click the name. This replaces the current rules and settings. |
+| Load | **Presets** → click the name. This replaces the current rules and settings. If the preset also sets a copy or move mode, a destination, or date and attribute changes, a message says so, so a preset can't quietly switch you to *Move*. |
 | Delete | **Presets** → the bin next to the name |
 
 Presets are stored as small JSON files you can back up or share (see
-[where things are stored](12-settings-portable.md#where-things-are-stored)). Saving with an existing
-name replaces that preset.
+[where things are stored](12-settings-portable.md#where-things-are-stored)). Saving with a name that
+already exists asks first: click **Save** a second time to replace that preset.
 
 Even without presets, Proteus remembers your last rule stack when you close it.
 
@@ -33,6 +33,9 @@ Click **History** in the title bar. Every batch is listed, newest first:
 - **N items renamed / moved / copied / updated**, when it happened, and one example.
 - **Undo** reverts that batch, even days later and after restarting Proteus.
 - Batches that have been undone show **Undone**.
+- Batches where only some items could be put back show **partly undone, N left**. Fix what stopped
+  them (for example, close a file that was open) and click **Undo** again; items already restored
+  are not touched a second time.
 - **Open folder** shows where history is stored.
 
 ### What undo does
@@ -44,7 +47,8 @@ Click **History** in the title bar. Every batch is listed, newest first:
 | Changed dates or attributes | Restores the previous values |
 
 If a file was moved or deleted outside Proteus since the batch, undo skips it and tells you; it never
-guesses. A batch is only marked *Undone* if something was actually restored.
+guesses. A batch is only marked *Undone* once everything in it has been restored; until then it
+stays *partly undone*.
 
 ### Interrupted batches
 

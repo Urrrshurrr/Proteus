@@ -10,7 +10,7 @@ Build a stack of rules, watch every new name update live with the changes highli
 thousands of files in one go. Every batch can be undone, even days later.
 
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](#requirements)
-[![.NET](https://img.shields.io/badge/.NET-8-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
+[![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![Avalonia](https://img.shields.io/badge/UI-Avalonia%2012-8B44AC)](https://avaloniaui.net/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-22c55e)](LICENSE)
 [![Portable](https://img.shields.io/badge/install-none%20%C2%B7%20portable-0ea5c6)](docs/guide/12-settings-portable.md#portable-mode)
@@ -54,7 +54,7 @@ names, and **JavaScript**. Stack them in any order.
 <tr>
 <td valign="top">
 
-### 🏷️ ~75 metadata tokens
+### 🏷️ 70+ tokens
 Photo EXIF, video length/resolution/quality, music tags (MP3, FLAC, M4A, WMA, OGG), Word/Excel/PowerPoint/PDF
 properties (no Office needed), hashes, dates, counters, plus **any Windows property** by name.
 
@@ -180,7 +180,7 @@ More in the [recipes](docs/guide/13-recipes.md).
 
 ## 🛠️ Build from source
 
-Requires the [.NET 8 SDK](https://dotnet.microsoft.com/download) on Windows.
+Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download) on Windows.
 
 ```bash
 git clone https://github.com/Urrrshurrr/Proteus.git
@@ -188,13 +188,13 @@ cd Proteus
 dotnet run --project src/Proteus.App
 ```
 
-**Portable single-file exe** (~45 MB, runs without .NET installed):
+**Portable single-file exe** (~48 MB, runs without .NET installed):
 
 ```bash
 dotnet publish src/Proteus.App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish
 ```
 
-**Tests** (95 unit and view-model tests):
+**Tests** (186 unit and view-model tests):
 
 ```bash
 dotnet test
@@ -226,7 +226,7 @@ property access, the safe rename executor) is built into the project.
 ## Requirements
 
 - Windows 10 or 11, 64-bit
-- Nothing else for the published exe; the .NET 8 SDK to build from source
+- Nothing else for the published exe; the .NET 10 SDK to build from source
 
 ## 📄 License
 
