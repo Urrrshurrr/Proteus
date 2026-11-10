@@ -638,6 +638,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             var result = await _journal.UndoAsync(item.Record, new Progress<double>(p => Progress = p));
             item.IsUndone = item.Record.Undone;
+            item.Refresh();
             var byPath = _all.GroupBy(f => f.Entry.FullPath, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
             foreach (var r in result.Results.Where(r => r.Success))
@@ -653,7 +654,7 @@ public sealed partial class MainViewModel : ObservableObject
             foreach (var f in _all) f.Entry.Refresh();
             if (_lastBatch?.Id == item.Record.Id) _lastBatch = null;
             if (result.Failed == 0) ShowNotice($"Undone: {result.Succeeded:N0} item{(result.Succeeded == 1 ? "" : "s")} restored.");
-            else ShowNotice($"Restored {result.Succeeded:N0}, {result.Failed:N0} not restored ({result.Results.First(r => !r.Success).Error}).", isError: true, sticky: true);
+            else ShowNotice($"Restored {result.Succeeded:N0}, {result.Failed:N0} not restored ({result.Results.First(r => !r.Success).Error}). The batch stays in History so you can try the rest again.", isError: true, sticky: true);
         }
         catch (Exception ex)
         {
@@ -693,7 +694,7 @@ public sealed partial class MainViewModel : ObservableObject
         History.Clear();
         foreach (var r in records) History.Add(new HistoryItemViewModel(r));
         OnPropertyChanged(nameof(HasHistory));
-        if (checkInterrupted && records.Any(r => r.InProgress && !r.Undone))
+        if (checkInterrupted && records.Any(r => r.InProgress && !r.Undone && !r.PartlyUndone))
             ShowNotice("A previous batch was interrupted before it finished. Open History to undo it.", isError: true, sticky: true);
     }
 

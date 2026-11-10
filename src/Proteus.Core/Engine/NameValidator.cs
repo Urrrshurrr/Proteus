@@ -5,11 +5,12 @@ namespace Proteus.Core.Engine;
 /// <summary>Checks proposed names against Windows rules and against each other.</summary>
 public static class NameValidator
 {
-    private static readonly HashSet<string> Reserved = new(StringComparer.OrdinalIgnoreCase)
+    /// <summary>Device names Windows will not accept as a file or folder name, with or without an extension.</summary>
+    public static readonly HashSet<string> Reserved = new(StringComparer.OrdinalIgnoreCase)
     {
-        "CON", "PRN", "AUX", "NUL",
-        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
-        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+        "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$",
+        "COM0", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "COM\u00B9", "COM\u00B2", "COM\u00B3",
+        "LPT0", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9", "LPT\u00B9", "LPT\u00B2", "LPT\u00B3",
     };
 
     private const string InvalidChars = "<>:\"/\\|?*";
@@ -28,6 +29,13 @@ public static class NameValidator
         var stem = name.Split('.')[0].TrimEnd();
         if (Reserved.Contains(stem)) return $"“{stem}” is a reserved name in Windows";
         return null;
+    }
+
+    /// <summary>Splits a name for "name (2).ext": folders and dot-files like ".gitignore" keep the whole name as the stem.</summary>
+    private static (string Stem, string Ext) SplitForNumber(string name, bool isFolder)
+    {
+        int dot = name.LastIndexOf('.');
+        return isFolder || dot <= 0 ? (name, string.Empty) : (name[..dot], name[dot..]);
     }
 
     /// <summary>Rename in place, no property changes.</summary>
@@ -64,17 +72,21 @@ public static class NameValidator
                 if (finalNames[i] == null) continue;
                 if (vacates && SamePlace(i)) { taken.Add(files[i].FullPath); continue; }
                 var name = finalNames[i]!;
+                // An invalid name (a slash, a reserved word...) is flagged below, never numbered:
+                // numbering must not quietly turn "AC/DC" into "DC".
+                if (problems?[i] != null || CheckName(name) != null) continue;
                 var dir = targetDirs[i];
                 var path = Path.Combine(dir, name);
                 bool caseOnly = vacates && string.Equals(path, files[i].FullPath, StringComparison.OrdinalIgnoreCase);
+                var (stem, ext) = SplitForNumber(name, files[i].IsFolder);
+                var candidate = name;
                 int n = 2;
                 while (!caseOnly && (taken.Contains(path) || (Exists(path) && !sources.Contains(path))) && n < 10000)
                 {
-                    var stem = files[i].IsFolder ? name : Path.GetFileNameWithoutExtension(name);
-                    var ext = files[i].IsFolder ? string.Empty : Path.GetExtension(name);
-                    path = Path.Combine(dir, $"{stem} ({n++}){ext}");
+                    candidate = $"{stem} ({n++}){ext}";
+                    path = Path.Combine(dir, candidate);
                 }
-                finalNames[i] = Path.GetFileName(path);
+                finalNames[i] = candidate;
                 taken.Add(path);
             }
         }
@@ -139,8 +151,7 @@ public static class NameValidator
                 continue;
             }
 
-            if (file.IsFolder && mode != BatchMode.Rename &&
-                (target + "\\").StartsWith(file.FullPath.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase))
+            if (file.IsFolder && mode != BatchMode.Rename && RenameExecutor.IsInside(target, file.FullPath))
             {
                 items[i] = item with { Status = ItemStatus.Invalid, Message = "A folder cannot go inside itself" };
                 continue;
@@ -154,15 +165,35 @@ public static class NameValidator
         if (vacates)
         {
             var movingFolders = items.Where(it => it.Status == ItemStatus.Ok && it.File.IsFolder)
-                .Select(it => it.File.FullPath.TrimEnd('\\') + "\\").ToList();
+                .Select(it => it.File.FullPath).ToList();
             if (movingFolders.Count > 0)
                 for (int i = 0; i < items.Length; i++)
                 {
                     var it = items[i];
                     if (it.Status is not (ItemStatus.Ok or ItemStatus.Update)) continue;
-                    if (movingFolders.Any(f => it.File.FullPath.StartsWith(f, StringComparison.OrdinalIgnoreCase)))
+                    if (movingFolders.Any(f => RenameExecutor.IsInside(it.File.FullPath, f)))
                         items[i] = it with { Status = ItemStatus.Conflict, Message = "Its folder is also being renamed in this batch. Do the folder and its contents in separate batches." };
                 }
+        }
+
+        // A folder may not land where another item of the batch is going inside: copying "jpg" to
+        // Dest\jpg while x.jpg goes to Dest\jpg\x.jpg would make the folder's destination exist
+        // by the time it is copied, and the result would depend on list order.
+        if (mode != BatchMode.Rename && items.Any(it => it.Status == ItemStatus.Ok && it.File.IsFolder))
+        {
+            var occupied = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var it in items)
+            {
+                if (it.Status != ItemStatus.Ok) continue;
+                for (var d = Path.GetDirectoryName(it.NewFullPath); !string.IsNullOrEmpty(d); d = Path.GetDirectoryName(d))
+                    if (!occupied.Add(d.TrimEnd('\\', '/'))) break;
+            }
+            for (int i = 0; i < items.Length; i++)
+            {
+                var it = items[i];
+                if (it.Status == ItemStatus.Ok && it.File.IsFolder && occupied.Contains(it.NewFullPath.TrimEnd('\\', '/')))
+                    items[i] = it with { Status = ItemStatus.Conflict, Message = "Another item in this batch goes inside this folder's new location. Do them in separate batches." };
+            }
         }
 
         // An item may only take a path freed by another item if that other item really moves.

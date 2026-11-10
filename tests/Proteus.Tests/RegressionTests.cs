@@ -195,7 +195,7 @@ public class RegressionTests
         File.AppendAllText(copy, " edited");
         File.SetLastWriteTimeUtc(copy, DateTime.UtcNow.AddMinutes(5));
 
-        UndoJournal.RemoveCopy = p => File.Delete(p);
+        UndoJournal.RemoveCopy = FolderSafetyTests.DeleteCopy;
         var journal = new UndoJournal(hist.Path);
         var undo = await journal.UndoAsync(journal.Record(result.Completed, "copy"));
         Assert.Equal(1, undo.Failed);

@@ -171,19 +171,13 @@ public static class RenamePipeline
         }
     }
 
-    private static readonly HashSet<string> ReservedNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
-        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
-    };
-
     private static string SafeSegment(string s)
     {
         var sb = new StringBuilder(s.Length);
         foreach (var c in s) sb.Append(c < 32 || "<>:\"|?*".Contains(c) ? '_' : c);
         var seg = sb.ToString().Trim().TrimEnd('.').Trim();
         if (seg.Length > 120) seg = seg[..120].TrimEnd('.', ' ');
-        if (ReservedNames.Contains(seg.Split('.')[0])) seg += "_";
+        if (NameValidator.Reserved.Contains(seg.Split('.')[0])) seg += "_";
         return seg;
     }
 

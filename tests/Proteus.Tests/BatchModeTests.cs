@@ -75,7 +75,7 @@ public class BatchModeTests
         Assert.Equal(["a.txt", "b.txt"], src.Names());
         Assert.Equal(["copy-a.txt", "copy-b.txt"], dst.Names());
 
-        UndoJournal.RemoveCopy = p => File.Delete(p);
+        UndoJournal.RemoveCopy = FolderSafetyTests.DeleteCopy;
         var journal = new UndoJournal(hist.Path);
         var rec = journal.Record(result.Completed, "copy");
         var undo = journal.UndoAsync(rec).GetAwaiter().GetResult();

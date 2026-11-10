@@ -89,6 +89,9 @@ public sealed partial class HistoryItemViewModel : ObservableObject
     public BatchRecord Record { get; }
     [ObservableProperty] private bool _isUndone;
 
+    /// <summary>Call after the record changed (for example after a partial undo).</summary>
+    public void Refresh() => OnPropertyChanged(nameof(Title));
+
     public string When => Record.Timestamp.Date == DateTime.Today
         ? "Today, " + Record.Timestamp.ToString("t")
         : Record.Timestamp.ToString("g");
@@ -107,7 +110,13 @@ public sealed partial class HistoryItemViewModel : ObservableObject
                 _ => "renamed",
             };
             var title = $"{n} item{(n == 1 ? "" : "s")} {verb}";
-            return Record.InProgress ? title.Replace(verb, "planned") + " \u00B7 interrupted" : title;
+            if (Record.InProgress && !Record.PartlyUndone) title = title.Replace(verb, "planned") + " \u00B7 interrupted";
+            if (Record.PartlyUndone && !Record.Undone)
+            {
+                int left = Record.Entries.Count(e => !e.Restored);
+                title += $" \u00B7 partly undone, {left} left";
+            }
+            return title;
         }
     }
     public string Description => Record.Description;
