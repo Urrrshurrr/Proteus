@@ -221,8 +221,9 @@ public sealed class UndoJournal
         {
             // Folder copies made before folder fingerprints existed have no count: treat as changed.
             if (e.CopyCount == null) return true;
-            var (count, size, newest) = RenameExecutor.FolderFingerprint(e.Target);
-            return count != e.CopyCount || size != e.CopySize || newest != e.CopyModified;
+            var (count, size, newest, names) = RenameExecutor.FolderFingerprint(e.Target);
+            return count != e.CopyCount || size != e.CopySize || newest != e.CopyModified
+                   || (e.CopyNames != null && names != e.CopyNames);
         }
         if (!File.Exists(e.Target)) return false;
         var info = new FileInfo(e.Target);

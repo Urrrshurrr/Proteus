@@ -56,12 +56,14 @@ public sealed record RenameOperation(string Source, string Target)
 
     /// <summary>
     /// What a copy looked like right after it was made, so undo can tell whether it changed since.
-    /// A file: its size and modified time. A folder: the total size of its files, the newest modified
-    /// time inside it and (in <see cref="CopyCount"/>) how many files and folders it holds.
+    /// A file: its size and modified time. A folder: the total size of its files, the newest file
+    /// modified time inside it, (in <see cref="CopyCount"/>) how many files and folders it holds and
+    /// (in <see cref="CopyNames"/>) a hash of their names.
     /// </summary>
     public long? CopySize { get; init; }
     public DateTime? CopyModified { get; init; }
     public int? CopyCount { get; init; }
+    public string? CopyNames { get; init; }
 
     /// <summary>True once undo has put this item back. A partly undone batch keeps the rest to retry.</summary>
     public bool Restored { get; init; }
@@ -234,8 +236,8 @@ public static class RenameExecutor
             var target = r.Operation.Target;
             if (Directory.Exists(target))
             {
-                var (count, size, newest) = FolderFingerprint(target);
-                return r with { Operation = r.Operation with { CopySize = size, CopyModified = newest, CopyCount = count } };
+                var (count, size, newest, names) = FolderFingerprint(target);
+                return r with { Operation = r.Operation with { CopySize = size, CopyModified = newest, CopyCount = count, CopyNames = names } };
             }
             if (!File.Exists(target)) return r;
             var info = new FileInfo(target);
@@ -410,26 +412,43 @@ public static class RenameExecutor
     }
 
     /// <summary>
-    /// What a folder looks like now: how many files and folders it holds, their total size and the
-    /// newest modified time. Used to tell whether a copied folder has been changed since.
+    /// What a folder looks like now: how many files and folders it holds, the total size of its files,
+    /// the newest file modified time and a hash of every name inside it. Used to tell whether a copied
+    /// folder has been changed since.
+    /// Folder times are left out on purpose: Windows updates a subfolder's time in its parent's listing
+    /// lazily, so it can differ between two readings of an untouched copy. Adding, removing or renaming
+    /// anything shows in the count and names; editing a file shows in its size or time.
     /// </summary>
-    internal static (int Count, long Size, DateTime Newest) FolderFingerprint(string dir)
+    internal static (int Count, long Size, DateTime Newest, string Names) FolderFingerprint(string dir)
     {
         int count = 0;
         long size = 0;
         var newest = DateTime.MinValue;
-        void Walk(DirectoryInfo d)
+        var names = new List<string>();
+        void Walk(DirectoryInfo d, string prefix)
         {
             foreach (var entry in d.EnumerateFileSystemInfos())
             {
                 count++;
-                if (entry.LastWriteTimeUtc > newest) newest = entry.LastWriteTimeUtc;
-                if (entry is FileInfo fi) size += fi.Length;
-                else if (entry is DirectoryInfo sub && (sub.Attributes & FileAttributes.ReparsePoint) == 0) Walk(sub);
+                var rel = prefix + entry.Name;
+                if (entry is FileInfo fi)
+                {
+                    fi.Refresh(); // read the file itself, not the folder listing's copy of its details
+                    size += fi.Length;
+                    if (fi.LastWriteTimeUtc > newest) newest = fi.LastWriteTimeUtc;
+                    names.Add(rel);
+                }
+                else if (entry is DirectoryInfo sub)
+                {
+                    names.Add(rel + "\\");
+                    if ((sub.Attributes & FileAttributes.ReparsePoint) == 0) Walk(sub, rel + "\\");
+                }
             }
         }
-        Walk(new DirectoryInfo(dir));
-        return (count, size, newest);
+        Walk(new DirectoryInfo(dir), "");
+        names.Sort(StringComparer.Ordinal);
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(string.Join("\n", names)));
+        return (count, size, newest, Convert.ToHexString(hash));
     }
 
     private static bool SameVolume(string a, string b) =>

@@ -151,6 +151,49 @@ public class FolderSafetyTests
     }
 
     [Fact]
+    public async Task a_copied_folder_whose_subfolder_times_moved_is_still_removed_by_undo()
+    {
+        // Windows updates a subfolder's time lazily; that alone must not count as a change.
+        using var src = new TempDir();
+        using var dst = new TempDir();
+        using var hist = new TempDir();
+        var album = Folder(src.Path, "Album", "song.mp3");
+        Folder(album, "Disc 2", "b.mp3");
+        var res = RenamePipeline.Preview([new FileEntry(album)], [true], [], new BatchOptions { Mode = BatchMode.Copy, DestinationFolder = dst.Path });
+        var result = RenameExecutor.Execute(Ops(res));
+
+        var copy = Path.Combine(dst.Path, "Album");
+        Directory.SetLastWriteTimeUtc(Path.Combine(copy, "Disc 2"), DateTime.UtcNow.AddMinutes(5));
+        Directory.SetLastWriteTimeUtc(copy, DateTime.UtcNow.AddMinutes(5));
+
+        UndoJournal.RemoveCopy = DeleteCopy;
+        var journal = new UndoJournal(hist.Path);
+        var undo = await journal.UndoAsync(journal.Record(result.Completed, "copy"));
+        Assert.Equal(0, undo.Failed);
+        Assert.False(Directory.Exists(copy));
+    }
+
+    [Fact]
+    public async Task a_copied_folder_with_a_renamed_file_is_left_in_place()
+    {
+        using var src = new TempDir();
+        using var dst = new TempDir();
+        using var hist = new TempDir();
+        var album = Folder(src.Path, "Album", "song.mp3");
+        var res = RenamePipeline.Preview([new FileEntry(album)], [true], [], new BatchOptions { Mode = BatchMode.Copy, DestinationFolder = dst.Path });
+        var result = RenameExecutor.Execute(Ops(res));
+
+        var copy = Path.Combine(dst.Path, "Album");
+        File.Move(Path.Combine(copy, "song.mp3"), Path.Combine(copy, "renamed.mp3"));
+
+        UndoJournal.RemoveCopy = DeleteCopy;
+        var journal = new UndoJournal(hist.Path);
+        var undo = await journal.UndoAsync(journal.Record(result.Completed, "copy"));
+        Assert.Equal(1, undo.Failed);
+        Assert.True(File.Exists(Path.Combine(copy, "renamed.mp3")));
+    }
+
+    [Fact]
     public async Task a_folder_copy_recorded_without_a_fingerprint_is_left_in_place()
     {
         using var d = new TempDir();

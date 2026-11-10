@@ -194,7 +194,7 @@ dotnet run --project src/Proteus.App
 dotnet publish src/Proteus.App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish
 ```
 
-**Tests** (186 unit and view-model tests):
+**Tests** (188 unit and view-model tests):
 
 ```bash
 dotnet test
