@@ -188,7 +188,7 @@ public sealed class FileMetadata
         }
         try
         {
-            using var fs = new FileStream(_entry.FullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 1 << 16);
+            using var fs = SharedFile.OpenRead(_entry.FullPath, 1 << 16);
             string? hex = algorithm switch
             {
                 "md5" => Convert.ToHexString(System.Security.Cryptography.MD5.HashData(fs)),
@@ -223,7 +223,7 @@ public sealed class FileMetadata
             {
                 if (!_entry.IsFolder && _entry.Size < 50_000_000)
                 {
-                    using var reader = new StreamReader(_entry.FullPath, detectEncodingFromByteOrderMarks: true);
+                    using var reader = new StreamReader(SharedFile.OpenRead(_entry.FullPath), detectEncodingFromByteOrderMarks: true);
                     for (int i = 0; i < 50; i++)
                     {
                         var l = reader.ReadLine();
@@ -267,7 +267,11 @@ public sealed class FileMetadata
         {
             if (_allDirs == null)
             {
-                try { _allDirs = ImageMetadataReader.ReadMetadata(_entry.FullPath).ToList(); }
+                try
+                {
+                    using var fs = SharedFile.OpenRead(_entry.FullPath);
+                    _allDirs = ImageMetadataReader.ReadMetadata(fs).ToList();
+                }
                 catch (Exception) { _allDirs = []; }
             }
         }
@@ -324,7 +328,8 @@ public sealed class FileMetadata
         if (_entry.IsFolder || !ImageExtensions.Contains(_entry.Extension)) return;
         try
         {
-            var dirs = ImageMetadataReader.ReadMetadata(_entry.FullPath);
+            IReadOnlyList<MetadataExtractor.Directory> dirs;
+            using (var fs = SharedFile.OpenRead(_entry.FullPath)) dirs = ImageMetadataReader.ReadMetadata(fs);
             var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var ifd0 = dirs.OfType<ExifIfd0Directory>().FirstOrDefault();
             var sub = dirs.OfType<ExifSubIfdDirectory>().FirstOrDefault();

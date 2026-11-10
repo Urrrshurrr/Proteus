@@ -16,7 +16,7 @@ public static class MatroskaReader
     {
         try
         {
-            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var fs = SharedFile.OpenRead(path);
             int width = 0, height = 0;
             double duration = 0;
             long scale = 1_000_000;
@@ -123,6 +123,12 @@ public static class MatroskaReader
 
     private static double ReadFloat(Stream s, long size)
     {
+        // A float is 4 or 8 bytes; never allocate a buffer whose size comes from a damaged file.
+        if (size is not (4 or 8))
+        {
+            s.Seek(size, SeekOrigin.Current);
+            return 0;
+        }
         var b = new byte[size];
         s.ReadExactly(b);
         if (BitConverter.IsLittleEndian) Array.Reverse(b);

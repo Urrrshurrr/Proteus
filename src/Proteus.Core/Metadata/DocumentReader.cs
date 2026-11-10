@@ -36,15 +36,37 @@ public static class DocumentReader
         return map;
     }
 
+    /// <summary>Metadata parts are a few KB; anything far bigger is refused rather than read into memory.</summary>
+    private const int MaxXmlEntry = 4 * 1024 * 1024;
+
+    private static ZipArchive OpenZip(string path) => new(SharedFile.OpenRead(path), ZipArchiveMode.Read, leaveOpen: false);
+
+    /// <summary>Loads a small XML part of an Office or OpenDocument file, or null when it is missing or too big.</summary>
+    private static XDocument? LoadXml(ZipArchive zip, string name)
+    {
+        var entry = zip.GetEntry(name);
+        if (entry == null || entry.Length > MaxXmlEntry) return null;
+        using var s = entry.Open();
+        // Never trust the size in the zip header: stop reading past the limit whatever it says.
+        var buffer = new MemoryStream();
+        var chunk = new byte[81920];
+        int n;
+        while ((n = s.Read(chunk, 0, chunk.Length)) > 0)
+        {
+            buffer.Write(chunk, 0, n);
+            if (buffer.Length > MaxXmlEntry) return null;
+        }
+        buffer.Position = 0;
+        return XDocument.Load(buffer);
+    }
+
     // ---------- Office Open XML ----------
     private static void ReadOoxml(string path, Dictionary<string, object> map)
     {
-        using var zip = ZipFile.OpenRead(path);
-        var core = zip.GetEntry("docProps/core.xml");
-        if (core != null)
+        using var zip = OpenZip(path);
+        var x = LoadXml(zip, "docProps/core.xml");
+        if (x != null)
         {
-            using var s = core.Open();
-            var x = XDocument.Load(s);
             foreach (var e in x.Root?.Elements() ?? [])
             {
                 var v = e.Value.Trim();
@@ -64,12 +86,10 @@ public static class DocumentReader
                 }
             }
         }
-        var app = zip.GetEntry("docProps/app.xml");
+        var app = LoadXml(zip, "docProps/app.xml");
         if (app != null)
         {
-            using var s = app.Open();
-            var x = XDocument.Load(s);
-            foreach (var e in x.Root?.Elements() ?? [])
+            foreach (var e in app.Root?.Elements() ?? [])
             {
                 var v = e.Value.Trim();
                 if (v.Length == 0) continue;
@@ -89,11 +109,9 @@ public static class DocumentReader
     // ---------- OpenDocument ----------
     private static void ReadOdf(string path, Dictionary<string, object> map)
     {
-        using var zip = ZipFile.OpenRead(path);
-        var meta = zip.GetEntry("meta.xml");
-        if (meta == null) return;
-        using var s = meta.Open();
-        var x = XDocument.Load(s);
+        using var zip = OpenZip(path);
+        var x = LoadXml(zip, "meta.xml");
+        if (x == null) return;
         foreach (var e in x.Descendants())
         {
             var v = e.Value.Trim();
@@ -123,8 +141,10 @@ public static class DocumentReader
 
     // ---------- PDF ----------
     private static readonly TimeSpan RegexBudget = TimeSpan.FromSeconds(1);
-    private static readonly Regex PdfInfoField = new(@"/(Title|Author|Subject|Keywords|Creator|Producer|CreationDate|ModDate)\s*(\((?:\\.|[^\\)])*\)|<[0-9A-Fa-f\s]*>)", RegexOptions.Compiled, RegexBudget);
-    private static readonly Regex PdfPageCount = new(@"/Type\s*/Pages\b[^>]*?/Count\s+(\d+)", RegexOptions.Compiled | RegexOptions.Singleline, RegexBudget);
+    private static readonly Regex InfoRef = new(@"/Info\s+(\d+)\s+(\d+)\s+R", RegexOptions.Compiled, RegexBudget);
+    private static readonly Regex Encrypt = new(@"/Encrypt\s*(?:\d+\s+\d+\s+R|<<)", RegexOptions.Compiled, RegexBudget);
+    private static readonly Regex PagesType = new(@"/Type\s*/Pages\b", RegexOptions.Compiled, RegexBudget);
+    private static readonly Regex CountKey = new(@"/Count\s+(\d+)", RegexOptions.Compiled, RegexBudget);
     private static readonly Regex XmpTitle = new(@"<dc:title>.{0,2000}?<rdf:li[^>]*>(.*?)</rdf:li>", RegexOptions.Compiled | RegexOptions.Singleline, RegexBudget);
     private static readonly Regex XmpCreator = new(@"<dc:creator>.{0,2000}?<rdf:li[^>]*>(.*?)</rdf:li>", RegexOptions.Compiled | RegexOptions.Singleline, RegexBudget);
     private static readonly Regex XmpCreate = new(@"<xmp:CreateDate>(.*?)</xmp:CreateDate>|xmp:CreateDate=""([^""]+)""", RegexOptions.Compiled, RegexBudget);
@@ -133,7 +153,7 @@ public static class DocumentReader
     {
         // Metadata normally sits near the start or the end; read both ends of large files.
         string text;
-        using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+        using (var fs = SharedFile.OpenRead(path))
         {
             const int head = 4 * 1024 * 1024, tail = 2 * 1024 * 1024;
             byte[] bytes;
@@ -152,27 +172,43 @@ public static class DocumentReader
             text = Encoding.Latin1.GetString(bytes);
         }
 
-        foreach (Match m in PdfInfoField.Matches(text))
+        // Encrypted: the strings are scrambled, so anything read would be nonsense.
+        if (Encrypt.IsMatch(text)) return;
+
+        // The document's own properties live in the object the trailer names as /Info. Reading only
+        // that object keeps bookmark titles (which use the same /Title key) out of <doc:title>.
+        // The last trailer wins: later saves append a new one.
+        Match? infoRef = null;
+        foreach (Match m in InfoRef.Matches(text)) infoRef = m;
+        if (infoRef != null && FindObject(text, infoRef.Groups[1].Value, infoRef.Groups[2].Value) is { } info)
         {
-            var key = m.Groups[1].Value;
-            var value = DecodePdfString(m.Groups[2].Value).Trim();
-            if (value.Length == 0) continue;
-            switch (key)
+            foreach (var (key, raw) in DictionaryEntries(info))
             {
-                case "Title": map["title"] = value; break;
-                case "Author": map["author"] = value; break;
-                case "Subject": map["subject"] = value; break;
-                case "Keywords": map["keywords"] = value; break;
-                case "Creator": map["app"] = value; break;
-                case "Producer": map.TryAdd("app", value); break;
-                case "CreationDate": if (TryPdfDate(value, out var c)) map["created"] = c; break;
-                case "ModDate": if (TryPdfDate(value, out var d)) map["modified"] = d; break;
+                if (raw.Length == 0 || (raw[0] != '(' && raw[0] != '<')) continue;
+                var value = DecodePdfString(raw).Trim();
+                if (value.Length == 0) continue;
+                switch (key)
+                {
+                    case "Title": map["title"] = value; break;
+                    case "Author": map["author"] = value; break;
+                    case "Subject": map["subject"] = value; break;
+                    case "Keywords": map["keywords"] = value; break;
+                    case "Creator": map["app"] = value; break;
+                    case "Producer": map.TryAdd("app", value); break;
+                    case "CreationDate": if (TryPdfDate(value, out var c)) map["created"] = c; break;
+                    case "ModDate": if (TryPdfDate(value, out var d)) map["modified"] = d; break;
+                }
             }
         }
 
+        // Page count: the largest /Count of a /Type /Pages node, whichever order the keys are in.
         int pages = 0;
-        foreach (Match m in PdfPageCount.Matches(text))
-            if (int.TryParse(m.Groups[1].Value, out var n)) pages = Math.Max(pages, n);
+        foreach (Match m in PagesType.Matches(text))
+        {
+            if (EnclosingDictionary(text, m.Index) is not { } dict) continue;
+            foreach (Match c in CountKey.Matches(dict))
+                if (int.TryParse(c.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var n)) pages = Math.Max(pages, n);
+        }
         if (pages > 0) map["pages"] = pages.ToString(CultureInfo.InvariantCulture);
 
         // XMP packet (UTF-8) as a fallback when the Info dictionary is compressed.
@@ -182,6 +218,98 @@ public static class DocumentReader
         {
             var v = cd.Groups[1].Success && cd.Groups[1].Value.Length > 0 ? cd.Groups[1].Value : cd.Groups[2].Value;
             if (TryDate(v, out var dt)) map["created"] = dt;
+        }
+    }
+
+    /// <summary>The dictionary of object "num gen obj", or null (for example when it sits in a compressed object stream).</summary>
+    private static string? FindObject(string text, string num, string gen)
+    {
+        Match? last = null;
+        try
+        {
+            foreach (Match m in Regex.Matches(text, $@"(?<![0-9]){num}\s+{gen}\s+obj\b", RegexOptions.None, RegexBudget)) last = m;
+        }
+        catch (RegexMatchTimeoutException) { return null; }
+        if (last == null) return null;
+        int open = text.IndexOf("<<", last.Index + last.Length, StringComparison.Ordinal);
+        if (open < 0 || open - (last.Index + last.Length) > 64) return null;
+        return DictionaryFrom(text, open);
+    }
+
+    /// <summary>The dictionary that contains position <paramref name="at"/>, found by looking back for its "&lt;&lt;".</summary>
+    private static string? EnclosingDictionary(string text, int at)
+    {
+        int from = at;
+        for (int tries = 0; tries < 8; tries++)
+        {
+            int open = text.LastIndexOf("<<", from, Math.Min(from + 1, 4096), StringComparison.Ordinal);
+            if (open < 0) return null;
+            var dict = DictionaryFrom(text, open);
+            if (dict != null && open + dict.Length > at) return dict;
+            from = open - 1;
+            if (from < 0) return null;
+        }
+        return null;
+    }
+
+    /// <summary>Reads a "&lt;&lt; … &gt;&gt;" dictionary starting at <paramref name="open"/>, nested dictionaries and strings included.</summary>
+    private static string? DictionaryFrom(string text, int open)
+    {
+        int depth = 0;
+        int limit = Math.Min(text.Length, open + 1_000_000);
+        for (int i = open; i < limit; i++)
+        {
+            char c = text[i];
+            if (c == '(') { i = SkipString(text, i) - 1; continue; }
+            if (c == '<' && i + 1 < limit && text[i + 1] == '<') { depth++; i++; continue; }
+            if (c == '>' && i + 1 < limit && text[i + 1] == '>')
+            {
+                depth--;
+                i++;
+                if (depth == 0) return text[open..(i + 1)];
+            }
+        }
+        return null;
+    }
+
+    /// <summary>Index just past a literal string starting at "(", allowing balanced brackets and escapes inside.</summary>
+    private static int SkipString(string text, int open)
+    {
+        int depth = 0;
+        for (int i = open; i < text.Length; i++)
+        {
+            char c = text[i];
+            if (c == '\\') { i++; continue; }
+            if (c == '(') depth++;
+            else if (c == ')' && --depth == 0) return i + 1;
+        }
+        return text.Length;
+    }
+
+    /// <summary>The top-level keys of a dictionary with their raw values ("(text)", "&lt;hex&gt;", "12 0 R"...).</summary>
+    private static IEnumerable<(string Key, string Raw)> DictionaryEntries(string dict)
+    {
+        int i = 2, end = dict.Length - 2;
+        while (i < end)
+        {
+            if (dict[i] != '/') { i++; continue; }
+            int k = ++i;
+            while (i < end && !char.IsWhiteSpace(dict[i]) && "/<>()[]".IndexOf(dict[i]) < 0) i++;
+            var key = dict[k..i];
+            while (i < end && char.IsWhiteSpace(dict[i])) i++;
+            if (i >= end) yield break;
+            int v = i;
+            if (dict[i] == '(') i = SkipString(dict, i);
+            else if (dict[i] == '<' && i + 1 < end && dict[i + 1] == '<')
+            {
+                var nested = DictionaryFrom(dict, i);
+                i += nested?.Length ?? end - i;
+            }
+            else if (dict[i] == '<') { int close = dict.IndexOf('>', i); i = close < 0 ? end : close + 1; }
+            else if (dict[i] == '[') { int close = dict.IndexOf(']', i); i = close < 0 ? end : close + 1; }
+            else if (dict[i] == '/') { i++; while (i < end && !char.IsWhiteSpace(dict[i]) && "/<>()[]".IndexOf(dict[i]) < 0) i++; }
+            else while (i < end && dict[i] != '/' && dict[i] != '>') i++;
+            yield return (key, dict[v..Math.Min(i, end)].Trim());
         }
     }
 
@@ -234,17 +362,23 @@ public static class DocumentReader
 
     private static bool TryPdfDate(string s, out DateTime date)
     {
-        // D:YYYYMMDDHHmmSSOHH'mm'
+        // D:YYYYMMDDHHmmSSOHH'mm' where O is +, - or Z. With a time zone the date is converted to
+        // local time, like Office dates; without one it is taken as written.
         date = default;
-        var m = Regex.Match(s, @"(\d{4})(\d{2})?(\d{2})?(\d{2})?(\d{2})?(\d{2})?");
+        var m = Regex.Match(s, @"(\d{4})(\d{2})?(\d{2})?(\d{2})?(\d{2})?(\d{2})?(?:([+\-Z])(?:(\d{2})'?(\d{2})?'?)?)?");
         if (!m.Success) return false;
-        int G(int i, int d) => m.Groups[i].Success ? int.Parse(m.Groups[i].Value, CultureInfo.InvariantCulture) : d;
+        int G(int i, int d) => m.Groups[i].Success && m.Groups[i].Value.Length > 0 ? int.Parse(m.Groups[i].Value, CultureInfo.InvariantCulture) : d;
         try
         {
-            date = new DateTime(G(1, 1), Math.Clamp(G(2, 1), 1, 12), Math.Clamp(G(3, 1), 1, 28 + 3), G(4, 0) % 24, G(5, 0) % 60, G(6, 0) % 60);
+            var local = new DateTime(G(1, 1), Math.Clamp(G(2, 1), 1, 12), 1, G(4, 0) % 24, G(5, 0) % 60, G(6, 0) % 60);
+            local = local.AddDays(Math.Clamp(G(3, 1), 1, DateTime.DaysInMonth(local.Year, local.Month)) - 1);
+            if (!m.Groups[7].Success) { date = local; return true; }
+            var offset = m.Groups[7].Value == "Z" ? TimeSpan.Zero : new TimeSpan(Math.Min(G(8, 0), 14), Math.Min(G(9, 0), 59), 0);
+            if (m.Groups[7].Value == "-") offset = -offset;
+            date = new DateTimeOffset(local, offset).LocalDateTime;
             return true;
         }
-        catch (ArgumentOutOfRangeException) { return false; }
+        catch (ArgumentException) { return false; }
     }
 
     private static bool TryDate(string s, out DateTime date)
@@ -257,4 +391,11 @@ public static class DocumentReader
         date = default;
         return false;
     }
+}
+
+/// <summary>Opens files for reading without getting in the way of a rename, move or delete.</summary>
+internal static class SharedFile
+{
+    public static FileStream OpenRead(string path, int bufferSize = 4096) =>
+        new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, bufferSize);
 }

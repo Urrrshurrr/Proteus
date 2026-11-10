@@ -35,7 +35,7 @@ public static class Id3Reader
     {
         try
         {
-            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var fs = SharedFile.OpenRead(path);
             var tags = new Id3Tags();
             ReadV2(fs, tags);
             ReadV1(fs, tags);
