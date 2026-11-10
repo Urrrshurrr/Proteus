@@ -20,7 +20,8 @@ public sealed partial class RearrangeRule : RenameRule
     public override string Icon => "⇅";
     public override string Summary => $"Split at {Quote(Delimiter)} → {Quote(Pattern)}{TargetSuffix}";
 
-    private static readonly Regex PartRef = new(@"\$(\d+|L|-\d+)", RegexOptions.Compiled);
+    // $L only when no letter follows, so "$Left" is not read as "$L" + "eft".
+    private static readonly Regex PartRef = new(@"\$(\d+|L(?![A-Za-z])|-\d+)", RegexOptions.Compiled);
 
     protected override string Transform(string input, RuleContext ctx)
     {
@@ -28,7 +29,8 @@ public sealed partial class RearrangeRule : RenameRule
         var parts = Delimiter.Length == 0
             ? input.Split(' ', StringSplitOptions.RemoveEmptyEntries)
             : input.Split(Delimiter);
-        if (parts.Length == 0) parts = [input];
+        // Nothing to rearrange when the name doesn't contain the delimiter: leave it alone.
+        if (parts.Length < 2) return input;
         var expanded = PartRef.Replace(Pattern, m =>
         {
             var key = m.Groups[1].Value;
@@ -136,6 +138,26 @@ public sealed partial class MoveRule : RenameRule
         }
     }
 
+    private const string Separators = " -_.,\u2013\u2014";
+
+    /// <summary>
+    /// Takes the piece out and removes one separator run next to the gap it leaves ("2024 - Trip"
+    /// minus "2024" is "Trip", "Invoice_2024_Acme" minus "2024" is "Invoice_Acme"). The rest of the
+    /// name is left exactly as it was.
+    /// </summary>
+    private static string CloseGap(string input, int at, int len)
+    {
+        int left = at, right = at + len;
+        int l = left;
+        while (l > 0 && Separators.Contains(input[l - 1])) l--;
+        int r = right;
+        while (r < input.Length && Separators.Contains(input[r])) r++;
+        if (left == 0) return input[r..];                      // piece was at the start
+        if (right == input.Length) return input[..l];          // piece was at the end
+        if (r > right) return input[..left] + input[r..];       // drop the run after the gap
+        return input[..l] + input[right..];                     // or the one before it
+    }
+
     protected override string Transform(string input, RuleContext ctx)
     {
         int at, len;
@@ -174,19 +196,23 @@ public sealed partial class MoveRule : RenameRule
             }
         }
         if (len == 0) return input;
+        // Never cut an emoji or other two-part character in half.
+        int stop = TextSafe.BoundaryAfter(input, at + len);
+        at = TextSafe.Boundary(input, at);
+        len = stop - at;
+        if (len <= 0) return input;
 
-        var piece = input.Substring(at, len);
-        var rest = input.Remove(at, len);
+        var piece = input.Substring(at, len).Trim();
+        var rest = CloseGap(input, at, len);
+        if (piece.Length == 0) return input;
+        if (rest.Length == 0) return piece;
         var sep = Separator;
-        // Tidy the gap the piece leaves behind, and avoid doubled separators.
-        if (sep.Length > 0) rest = rest.Replace(sep + sep, sep).Trim();
-        piece = piece.Trim();
 
         return Destination switch
         {
-            MoveDestination.Start => piece + sep + rest.TrimStart(),
-            MoveDestination.End => rest.TrimEnd() + sep + piece,
-            _ => rest.Insert(Math.Clamp(ToPosition - 1, 0, rest.Length), piece),
+            MoveDestination.Start => piece + sep + rest,
+            MoveDestination.End => rest + sep + piece,
+            _ => rest.Insert(TextSafe.Boundary(rest, Math.Clamp(ToPosition - 1, 0, rest.Length)), piece),
         };
     }
 }
@@ -210,7 +236,7 @@ public sealed partial class ReformatDateRule : RenameRule
     protected override string Transform(string input, RuleContext ctx)
     {
         if (TargetFormat.Length == 0) return input;
-        var culture = EnglishMonthNames ? CultureInfo.InvariantCulture : CultureInfo.CurrentCulture;
+        var culture = EnglishMonthNames ? CultureInfo.InvariantCulture : TokenEngine.DateCulture;
         foreach (var (format, regex) in Compile())
         {
             try
@@ -286,13 +312,13 @@ public sealed partial class TransliterateRule : RenameRule
         TranslitAlphabet.Cyrillic => "Cyrillic → Latin",
         TranslitAlphabet.Greek => "Greek → Latin",
         TranslitAlphabet.German => "ä ö ü ß → ae oe ue ss",
-        _ => "Any alphabet → plain ASCII",
+        _ => "Any alphabet → plain letters",
     } + (CustomPairs.Length > 0 ? ", plus your own pairs" : "") + TargetSuffix;
 
     private static readonly Dictionary<char, string> CyrillicMap = BuildMap(
         "аa бb вv гg дd еe ёyo жzh зz иi йy кk лl мm нn оo пp " +
         "рr сs тt уu фf хkh цts чch шsh щshch ъ_ ыy ь_ эe юyu яya " +
-        "іi їyi єye ґg ўj ђdj ћc џdz љlj њnj ўk");
+        "іi їyi єye ґg ўu јj ђdj ћc џdz љlj њnj ќkj ѓgj ѕdz");
 
     private static readonly Dictionary<char, string> GreekMap = BuildMap(
         "αa βv γg δd εe ζz ηi θth ιi κk λl μm νn ξx οo πp " +
@@ -339,16 +365,27 @@ public sealed partial class TransliterateRule : RenameRule
         if (Alphabet == TranslitAlphabet.Cyrillic) return Map(s, CyrillicMap);
         if (Alphabet == TranslitAlphabet.Greek) return Map(s, GreekMap);
 
-        // Everything: known alphabets, ligatures, then strip remaining accents; drop what's left.
+        // Everything: known alphabets, ligatures, then strip accents from Latin letters. Characters
+        // with no plain form (Chinese, Arabic, emoji...) are kept as they are, never deleted.
         s = Map(Map(Map(s, CyrillicMap), GreekMap), LigatureMap);
         var normalized = s.Normalize(NormalizationForm.FormD);
         var sb = new StringBuilder(normalized.Length);
+        var kept = new StringBuilder();
+        bool afterAscii = false;
         foreach (var c in normalized)
         {
             var cat = CharUnicodeInfo.GetUnicodeCategory(c);
-            if (cat == UnicodeCategory.NonSpacingMark) continue;
-            if (c < 128) sb.Append(c);
+            if (cat is UnicodeCategory.NonSpacingMark or UnicodeCategory.EnclosingMark)
+            {
+                if (!afterAscii) sb.Append(c); // a mark on a kept character stays with it
+                continue;
+            }
+            afterAscii = c < 128;
+            sb.Append(c);
+            if (!afterAscii && kept.Length < 12 && !char.IsLowSurrogate(c)) kept.Append(c);
         }
+        if (kept.Length > 0)
+            RuntimeError = $"Some characters have no plain-letter form and were kept as they are (for example {kept}).";
         return sb.ToString().Normalize(NormalizationForm.FormC);
     }
 
@@ -473,7 +510,8 @@ public sealed partial class ListRule : RenameRule
         string? replacement = null;
         if (Mode == ListMode.NamesInOrder)
         {
-            if (ctx.Index < _names.Length) replacement = TokenEngine.Expand(_names[ctx.Index], ctx);
+            var (index, _) = ScopedPosition(ctx);
+            if (index < _names.Length) replacement = TokenEngine.Expand(_names[index], ctx);
         }
         else if (_map.TryGetValue(ctx.File.FullPath, out var byFull) || _map.TryGetValue(ctx.File.FileName, out byFull) || _map.TryGetValue(ctx.File.BaseName, out byFull)
                  || _map.TryGetValue(name.Full, out byFull) || _map.TryGetValue(name.Base, out byFull))

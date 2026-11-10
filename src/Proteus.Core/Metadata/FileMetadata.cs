@@ -343,6 +343,7 @@ public sealed class FileMetadata
             Put("lens", sub, ExifDirectoryBase.TagLensModel);
             Put("iso", sub, ExifDirectoryBase.TagIsoEquivalent);
             Put("fnumber", sub, ExifDirectoryBase.TagFNumber);
+            if (map.TryGetValue("fnumber", out var fn)) map["fnumber"] = fn.Replace("f/", "f", StringComparison.OrdinalIgnoreCase);
             Put("exposure", sub, ExifDirectoryBase.TagExposureTime);
             Put("focal", sub, ExifDirectoryBase.TagFocalLength);
 

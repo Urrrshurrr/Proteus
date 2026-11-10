@@ -25,9 +25,9 @@ public sealed record PropertyChanges(DateTime? Created, DateTime? Modified, Date
     public string Describe()
     {
         var parts = new List<string>();
-        if (Created is { } c) parts.Add($"created {c:yyyy-MM-dd HH:mm}");
-        if (Modified is { } m) parts.Add($"modified {m:yyyy-MM-dd HH:mm}");
-        if (Accessed is { } a) parts.Add($"accessed {a:yyyy-MM-dd HH:mm}");
+        if (Created is { } c) parts.Add(FormattableString.Invariant($"created {c:yyyy-MM-dd HH:mm}"));
+        if (Modified is { } m) parts.Add(FormattableString.Invariant($"modified {m:yyyy-MM-dd HH:mm}"));
+        if (Accessed is { } a) parts.Add(FormattableString.Invariant($"accessed {a:yyyy-MM-dd HH:mm}"));
         if (SetAttributes != 0) parts.Add("+" + SetAttributes.ToString().Replace(", ", " +"));
         if (ClearAttributes != 0) parts.Add("−" + ClearAttributes.ToString().Replace(", ", " −"));
         return string.Join(", ", parts);
@@ -220,7 +220,8 @@ public static class RenamePipeline
             }
             catch (Exception ex)
             {
-                rule.RuntimeError = $"{ex.Message}";
+                // Keep a rule's own (first) description of the problem if it set one.
+                rule.RuntimeError ??= ex.Message;
                 return (name.Full, $"The \u201C{rule.Title}\u201D rule failed: {ex.Message}");
             }
         }
@@ -230,6 +231,7 @@ public static class RenamePipeline
     public static RuleContext?[] BuildContexts(IReadOnlyList<FileEntry> files, IReadOnlyList<bool> included)
     {
         var result = new RuleContext?[files.Count];
+        var now = DateTime.Now; // one moment for the whole batch, so <now:…> is the same for every file
         int count = included.Count(x => x);
         var perFolder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         int index = 0;
@@ -239,7 +241,7 @@ public static class RenamePipeline
             var dir = files[i].Directory;
             perFolder.TryGetValue(dir, out var fi);
             perFolder[dir] = fi + 1;
-            result[i] = new RuleContext(files[i], index++, fi, count);
+            result[i] = new RuleContext(files[i], index++, fi, count) { Now = now, All = result };
         }
         return result;
     }

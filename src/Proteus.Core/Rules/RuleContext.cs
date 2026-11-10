@@ -22,6 +22,12 @@ public sealed class RuleContext
     public int FolderIndex { get; }
 
     public int Count { get; }
+
+    /// <summary>The moment the preview started; <c>&lt;now&gt;</c> uses it so every file gets the same time.</summary>
+    public DateTime Now { get; init; } = DateTime.Now;
+
+    /// <summary>Every file's context in list order (null for files not taking part), when known.</summary>
+    public IReadOnlyList<RuleContext?>? All { get; init; }
 }
 
 /// <summary>The name being built up as rules run: base name and extension (with dot).</summary>

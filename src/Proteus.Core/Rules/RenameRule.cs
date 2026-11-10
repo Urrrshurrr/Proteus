@@ -101,7 +101,8 @@ public abstract partial class RenameRule : ObservableObject
 
     public bool InScope(RuleContext ctx)
     {
-        if (string.IsNullOrWhiteSpace(ScopePattern)) return true;
+        // Blank, or separators only (";"), means no filter at all.
+        if (!HasScope) return true;
         bool match;
         var subject = ctx.File.FileName;
         if (ScopeIsRegex)
@@ -115,6 +116,11 @@ public abstract partial class RenameRule : ObservableObject
                 }
                 match = _scopeRegex.IsMatch(subject);
             }
+            catch (RegexMatchTimeoutException)
+            {
+                RuntimeError = "The \u201COnly apply to\u201D pattern is too slow on some names, so this rule is skipped for them. Try a simpler pattern.";
+                match = false;
+            }
             catch (Exception)
             {
                 RuntimeError = "The \u201COnly apply to\u201D pattern is not a valid regular expression, so this rule is skipped.";
@@ -126,6 +132,35 @@ public abstract partial class RenameRule : ObservableObject
             match = Wildcard.IsMatchAny(subject, ScopePattern);
         }
         return ScopeInvert ? !match : match;
+    }
+
+    private IReadOnlyList<RuleContext?>? _scopedFor;
+    private Dictionary<RuleContext, (int Index, int FolderIndex)>? _scoped;
+
+    /// <summary>
+    /// The file's position among the files this rule applies to. Without an "Only apply to" filter
+    /// that is simply its position in the list; with one, files the rule skips are not counted,
+    /// so numbering has no gaps.
+    /// </summary>
+    protected (int Index, int FolderIndex) ScopedPosition(RuleContext ctx)
+    {
+        if (!HasScope || ctx.All == null) return (ctx.Index, ctx.FolderIndex);
+        if (!ReferenceEquals(_scopedFor, ctx.All) || _scoped == null)
+        {
+            var map = new Dictionary<RuleContext, (int, int)>();
+            var perFolder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            int n = 0;
+            foreach (var c in ctx.All)
+            {
+                if (c == null || !InScope(c)) continue;
+                perFolder.TryGetValue(c.File.Directory, out var fi);
+                perFolder[c.File.Directory] = fi + 1;
+                map[c] = (n++, fi);
+            }
+            _scoped = map;
+            _scopedFor = ctx.All;
+        }
+        return _scoped.TryGetValue(ctx, out var pos) ? pos : (ctx.Index, ctx.FolderIndex);
     }
 
     /// <summary>Creates an independent copy with the same settings.</summary>

@@ -78,7 +78,10 @@ public static class NameStyle
     ];
 
     private static readonly TimeSpan Timeout = TimeSpan.FromMilliseconds(200);
-    private static readonly Regex Word = new(@"[\p{L}\p{N}'’`!?&+]+(?:-[\p{L}\p{N}'’`!?&+]+)*", RegexOptions.CultureInvariant, Timeout);
+    // Dotted acronyms ("M.A.S.H", "S.H.I.E.L.D") count as one word.
+    private const string AcronymPattern = @"(?<![\p{L}\p{N}])(?:\p{L}\.){2,}\p{L}(?![\p{L}\p{N}])";
+    private static readonly Regex Acronym = new(AcronymPattern, RegexOptions.CultureInvariant, Timeout);
+    private static readonly Regex Word = new(AcronymPattern + @"|[\p{L}\p{N}'’`!?&+]+(?:-[\p{L}\p{N}'’`!?&+]+)*", RegexOptions.CultureInvariant, Timeout);
     private static readonly Regex YearWord = new(@"^(?:19|20)\d{2}$", RegexOptions.CultureInvariant, Timeout);
     private static readonly Regex QualityWord = new(@"^(?:\d{3,4}[pi]|[48]k)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, Timeout);
     private static readonly Regex TokenRx = new(@"<(show|year|season|episode|title|quality)(?::(0+))?>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, Timeout);
@@ -106,7 +109,9 @@ public static class NameStyle
     {
         var w = word.ToLowerInvariant();
         if (QualityWord.IsMatch(w)) return true;
-        if (NameMatcher.Noise.Contains(w)) return !strict || !Ambiguous.Contains(w);
+        // Release groups write tags like "iNTERNAL": a lowercase first letter followed by capitals.
+        if (NameMatcher.Noise.Contains(w))
+            return !strict || !Ambiguous.Contains(w) || (word.Length > 2 && char.IsLower(word[0]) && word.Skip(1).All(char.IsUpper));
         var parts = w.Split('-', StringSplitOptions.RemoveEmptyEntries);
         // "WEB-DL", "x265-GROUP", "WEBDL-1080p": a hyphenated release tag starts with a release word.
         return parts.Length > 1 && (NameMatcher.Noise.Contains(parts[0]) || QualityWord.IsMatch(parts[0]) || parts.Any(QualityWord.IsMatch));
@@ -465,7 +470,12 @@ public static class NameStyle
     private static string Render(string text, char sourceSeparator, string separator, WordCase wordCase, bool smallWordsLower)
     {
         if (text.Length == 0) return string.Empty;
-        var t = sourceSeparator is '.' or '_' ? text.Replace(sourceSeparator, ' ') : text;
+        var t = sourceSeparator switch
+        {
+            '.' => DotsToSpaces(text),
+            '_' => text.Replace('_', ' '),
+            _ => text,
+        };
         t = Regex.Replace(t, @"\s+", " ").Trim();
 
         List<Match> words;
@@ -493,6 +503,22 @@ public static class NameStyle
         // Dots, underscores or hyphens between words leave no room for commas and brackets.
         try { return string.Join(separator, Word.Matches(cased).Select(m => m.Value)); }
         catch (RegexMatchTimeoutException) { return cased.Replace(" ", separator); }
+    }
+
+    /// <summary>Turns word-separating dots into spaces but keeps the dots of acronyms like "M.A.S.H".</summary>
+    private static string DotsToSpaces(string text)
+    {
+        var chars = text.ToCharArray();
+        var keep = new bool[chars.Length];
+        try
+        {
+            foreach (Match m in Acronym.Matches(text))
+                for (int i = m.Index; i < m.Index + m.Length; i++) keep[i] = true;
+        }
+        catch (RegexMatchTimeoutException) { }
+        for (int i = 0; i < chars.Length; i++)
+            if (chars[i] == '.' && !keep[i]) chars[i] = ' ';
+        return new string(chars);
     }
 
     /// <summary>How many letters (1 or 2) sit glued to the end of a literal, like the "S" in " - S".</summary>

@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Jint;
+using Acornima.Ast;
 using Jint.Native;
 using Proteus.Core.Tokens;
 
@@ -9,8 +10,8 @@ namespace Proteus.Core.Rules;
 /// <summary>
 /// JavaScript rule (like Bulk Rename Utility's JavaScript renaming). The script sees the current
 /// name and extension as variables and changes them. It runs in a sandbox: no file, network or
-/// .NET access, with time, memory and recursion limits. Each file gets a fresh function scope, so
-/// let/const work and nothing leaks from one file to the next.
+/// .NET access, with time, memory and recursion limits. Each file runs in a fresh engine, so
+/// let/const work and nothing (not even an undeclared variable) leaks from one file to the next.
 /// </summary>
 public sealed partial class ScriptRule : RenameRule
 {
@@ -23,10 +24,6 @@ public sealed partial class ScriptRule : RenameRule
     private const string Parameters = "name, ext, index, number, folderIndex, count, isFolder, size, original, created, modified, token, pad";
 
     [ObservableProperty] private string _script = DefaultScript;
-
-    private Jint.Engine? _engine;
-    private JsValue? _function;
-    private string? _compiledSource;
 
     public override string Title => "JavaScript";
     public override string Icon => "JS";
@@ -41,18 +38,39 @@ public sealed partial class ScriptRule : RenameRule
         }
     }
 
-    /// <summary>The last problem the script hit (syntax or runtime), or null. Same as <see cref="RenameRule.RuntimeError"/>.</summary>
+    /// <summary>The first problem the script hit (syntax or runtime), or null. Same as <see cref="RenameRule.RuntimeError"/>.</summary>
     [JsonIgnore] public string? Error => RuntimeError;
 
-    partial void OnScriptChanged(string value) => RuntimeError = null;
+    private Prepared<Script>? _prepared;
+    private string? _compileError;
+    private string? _firstError;
+    private int _failures;
 
+    partial void OnScriptChanged(string value)
+    {
+        RuntimeError = null;
+        _firstError = null;
+        _failures = 0;
+    }
+
+    /// <summary>
+    /// Runs the script for one file in a brand-new engine, so nothing (globals, changed prototypes)
+    /// carries over from one file to the next. A failure is thrown on, so the file is marked
+    /// Invalid; the rule keeps the first error and counts the files that failed.
+    /// </summary>
     protected override NameParts ApplyCore(NameParts name, RuleContext ctx)
     {
-        var fn = GetFunction();
-        if (fn == null || _engine == null) return name;
+        if (Prepare() is not { } prepared) throw Fail(_compileError!);
         var f = ctx.File;
         try
         {
+            var engine = new Jint.Engine(o => o
+                .Strict(false)
+                .LimitRecursion(200)
+                .TimeoutInterval(TimeSpan.FromMilliseconds(500))
+                .MaxStatements(2_000_000)
+                .LimitMemory(64_000_000));
+            var fn = engine.Evaluate(prepared);
             var original = new
             {
                 name = f.BaseName,
@@ -61,7 +79,7 @@ public sealed partial class ScriptRule : RenameRule
                 folder = Path.GetFileName(f.Directory),
                 path = f.FullPath,
             };
-            var result = _engine.Invoke(fn,
+            var result = engine.Invoke(fn,
                 name.Base, name.Extension.TrimStart('.'), ctx.Index, ctx.Index + 1, ctx.FolderIndex, ctx.Count,
                 f.IsFolder, (double)f.Size, original, f.Created, f.Modified,
                 new Func<string, string>(t => TokenEngine.Expand("<" + t.Trim('<', '>') + ">", ctx)),
@@ -69,44 +87,46 @@ public sealed partial class ScriptRule : RenameRule
 
             var newBase = AsText(result.AsObject().Get("0"));
             var newExt = AsText(result.AsObject().Get("1")).Trim().TrimStart('.');
-            RuntimeError = null;
             if (ctx.File.IsFolder) return new NameParts(newBase + (newExt.Length > 0 ? "." + newExt : ""), string.Empty);
             return new NameParts(newBase, newExt.Length == 0 ? string.Empty : "." + newExt);
         }
         catch (Exception ex)
         {
-            RuntimeError = Describe(ex);
-            return name;
+            throw Fail(Describe(ex));
         }
+    }
+
+    private ScriptFailedException Fail(string message)
+    {
+        _failures++;
+        _firstError ??= message;
+        RuntimeError = _failures == 1 ? _firstError : $"{_firstError} ({_failures:N0} files failed; the first problem is shown)";
+        return new ScriptFailedException(message);
     }
 
     protected override string Transform(string input, RuleContext ctx) => input;
 
-    /// <summary>Wraps the user's script in a function once; each file is then a separate call.</summary>
-    private JsValue? GetFunction()
+    /// <summary>Parses the user's script, wrapped in a function, once per script text.</summary>
+    private Prepared<Script>? Prepare()
     {
-        if (_compiledSource == Script) return _function;
+        if (_compiledSource == Script) return _prepared;
         _compiledSource = Script;
-        _function = null;
-        _engine = new Jint.Engine(o => o
-            .Strict(false)
-            .LimitRecursion(200)
-            .TimeoutInterval(TimeSpan.FromMilliseconds(500))
-            .MaxStatements(2_000_000)
-            .LimitMemory(64_000_000));
+        _prepared = null;
+        _compileError = null;
         try
         {
             // The script is the function body; the closing lines hand the variables back.
             var source = $"(function ({Parameters}) {{\n{Script}\n;return [name, ext];\n}})";
-            _function = _engine.Evaluate(source);
-            RuntimeError = null;
+            _prepared = Jint.Engine.PrepareScript(source);
         }
         catch (Exception ex)
         {
-            RuntimeError = Describe(ex);
+            _compileError = Describe(ex);
         }
-        return _function;
+        return _prepared;
     }
+
+    private string? _compiledSource;
 
     private static string AsText(JsValue v) =>
         v.IsNull() || v.IsUndefined() ? string.Empty : v.IsString() ? v.AsString() : v.ToString();
@@ -114,6 +134,7 @@ public sealed partial class ScriptRule : RenameRule
     private static string Describe(Exception ex)
     {
         static string Line(int line) => line > 1 ? $" (line {line - 1})" : "";
+        if (ex.InnerException is Acornima.ParseErrorException inner) ex = inner;
         return ex switch
         {
             Jint.Runtime.JavaScriptException js => $"Script error: {js.Message}{Line(js.Location.Start.Line)}",
@@ -126,3 +147,6 @@ public sealed partial class ScriptRule : RenameRule
         };
     }
 }
+
+/// <summary>The JavaScript rule failed for one file; the message is already in plain words.</summary>
+public sealed class ScriptFailedException(string message) : Exception(message);

@@ -307,11 +307,29 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void IncludeAll(string? mode)
+    private void IncludeAll(string? mode) =>
+        SetIncluded(_all, f => mode switch { "none" => false, "invert" => !f.IsIncluded, _ => true });
+
+    /// <summary>Ticks or unticks many files at once with a single preview, not one per file.</summary>
+    public void SetIncluded(IEnumerable<FileItemViewModel> items, Func<FileItemViewModel, bool> value)
     {
-        foreach (var f in _all)
-            f.IsIncluded = mode switch { "none" => false, "invert" => !f.IsIncluded, _ => true };
+        bool changed = false;
+        _batchingIncludes = true;
+        try
+        {
+            foreach (var f in items.ToList())
+            {
+                var v = value(f);
+                if (f.IsIncluded == v) continue;
+                f.IsIncluded = v;
+                changed = true;
+            }
+        }
+        finally { _batchingIncludes = false; }
+        if (changed) SchedulePreview();
     }
+
+    private bool _batchingIncludes;
 
     [RelayCommand]
     private void SortBy(SortColumn column)
@@ -364,7 +382,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void OnFileItemChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(FileItemViewModel.IsIncluded)) SchedulePreview();
+        if (e.PropertyName == nameof(FileItemViewModel.IsIncluded) && !_batchingIncludes) SchedulePreview();
     }
 
     // ---------- Rules ----------
@@ -448,13 +466,10 @@ public sealed partial class MainViewModel : ObservableObject
         _previewCts?.Cancel();
         var cts = _previewCts = new CancellationTokenSource();
         IsPreviewPending = true;
-        var items = _all.ToArray();
-        var entries = items.Select(i => i.Entry).ToArray();
-        var included = items.Select(i => i.IsIncluded).ToArray();
-        var originals = Rules.ToArray();
-        var clones = originals.Select(r => r.Clone()).ToArray();
-        var options = CloneOptions(Options);
-        _previewTask = RunPreviewAsync(items, entries, included, originals, clones, options, cts);
+        // While a batch runs, the files are being renamed: reading them for a preview could make a
+        // rename fail with "in use". The batch schedules a fresh preview when it finishes.
+        if (IsBusy) return;
+        _previewTask = RunPreviewAsync(cts);
     }
 
     /// <summary>Completes when the most recently scheduled preview has been applied.</summary>
@@ -467,13 +482,20 @@ public sealed partial class MainViewModel : ObservableObject
         System.Text.Json.JsonSerializer.Deserialize<BatchOptions>(
             System.Text.Json.JsonSerializer.Serialize(o, RuleJson.Options), RuleJson.Options) ?? new BatchOptions();
 
-    private async Task RunPreviewAsync(FileItemViewModel[] items, FileEntry[] entries, bool[] included,
-        RenameRule[] originals, RenameRule[] rules, BatchOptions options, CancellationTokenSource cts)
+    private async Task RunPreviewAsync(CancellationTokenSource cts)
     {
         var ct = cts.Token;
         try
         {
-            await Task.Delay(entries.Length > 2000 ? 150 : 60, ct);
+            await Task.Delay(_all.Count > 2000 ? 150 : 60, ct);
+            // Take the snapshot only once changes have settled, so a burst of edits (or ticking
+            // thousands of files) costs one copy of the list and rules, not one per change.
+            var items = _all.ToArray();
+            var entries = items.Select(i => i.Entry).ToArray();
+            var included = items.Select(i => i.IsIncluded).ToArray();
+            var originals = Rules.ToArray();
+            var rules = originals.Select(r => r.Clone()).ToArray();
+            var options = CloneOptions(Options);
             var result = await Task.Run(() => RenamePipeline.Preview(entries, included, rules, options, ct), ct);
             if (ct.IsCancellationRequested) return;
             for (int i = 0; i < items.Length; i++)
@@ -513,6 +535,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void UpdateTrace()
     {
         _traceCts?.Cancel();
+        if (IsBusy) return; // never read files while the batch is renaming them
         var file = SelectedFile;
         if (file == null) { Trace.Clear(); return; }
         int idx = _all.IndexOf(file);
@@ -563,6 +586,7 @@ public sealed partial class MainViewModel : ObservableObject
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
         IsBusy = true;
+        _traceCts?.Cancel();
         Progress = 0;
         BatchRecord? record = null;
         try
@@ -906,7 +930,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (Ui == null || _all.Count == 0) return;
         if (IsPreviewPending) await WaitForPreviewAsync();
         if (_lastPreview == null) return;
-        var path = await Ui.SaveCsvAsync($"Proteus preview {DateTime.Now:yyyy-MM-dd HHmm}.csv");
+        var path = await Ui.SaveCsvAsync(FormattableString.Invariant($"Proteus preview {DateTime.Now:yyyy-MM-dd HHmm}.csv"));
         if (path == null) return;
         var inList = _all.Select(f => f.Entry).ToHashSet();
         var rows = new List<string[]> { new[] { "Current path", "New path", "Action", "Status", "Dates & attributes", "Message" } };

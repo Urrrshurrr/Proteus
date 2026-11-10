@@ -49,7 +49,8 @@ public static class NameMatcher
     internal static readonly Regex SxE = new(
         @"(?<![a-z0-9])s(?<s>\d{1,3})[ ._-]?e(?<e>\d{1,4})(?:(?:(?:[ ._]?-[ ._]?)?e|-)(?<e2>\d{1,4})(?![\dp]))?", Opts, Timeout);
     // 1x03, 01x03
-    internal static readonly Regex NxN = new(@"(?<![\da-z])(?<s>\d{1,2}) ?x ?(?<e>\d{2,3})(?!\d)", Opts, Timeout);
+    // (not a size: "10x15 cm", "Photo 10x15 print")
+    internal static readonly Regex NxN = new(@"(?<![\da-z])(?<s>\d{1,2}) ?x ?(?<e>\d{2,3})(?!\d)(?![ ._-]?(?:cm|mm|in|inch|inches|px|print|prints|photo|photos)(?![a-z]))", Opts, Timeout);
     // Season 1 Episode 3
     internal static readonly Regex SeasonWords = new(@"season[ ._-]*(?<s>\d{1,3})[^a-z0-9]{0,5}(?:episode|ep)[ ._-]*(?<e>\d{1,4})", Opts, Timeout);
     // Episode 3, Ep 03, E03 (no season)
@@ -186,6 +187,11 @@ public static class NameMatcher
         if (a.Episode is { } ea && b.Episode is { } eb)
         {
             if (!ea.SameAs(eb)) return (0, MatchKind.None);
+            // The same episode number alone does not make the same show: "Breaking Bad S01E01" and
+            // "The Wire 1x01" share nothing else. When both names have words and none of them agree,
+            // the pair is only offered as a weak guess.
+            if (a.Words.Count > 0 && b.Words.Count > 0 && !a.Words.Overlaps(b.Words) && text < 0.25)
+                return (0.3 + 0.3 * text, MatchKind.Similar);
             // Same episode: a strong signal on its own; the title decides between duplicates.
             double bonus = ea.Season == eb.Season ? 0.7 : 0.6;
             return (bonus + 0.3 * text, MatchKind.Episode);

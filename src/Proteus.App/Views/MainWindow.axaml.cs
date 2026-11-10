@@ -54,6 +54,8 @@ public partial class MainWindow : Window, IUiServices
         this.GetObservable(WindowStateProperty).Subscribe(new Avalonia.Reactive.AnonymousObserver<WindowState>(_ =>
             Avalonia.Threading.Dispatcher.UIThread.Post(() => PinCaptionButtons(), Avalonia.Threading.DispatcherPriority.Background)));
 
+#if DEBUG
+        // Development aid only: writes the visual tree to a file. Not part of release builds.
         if (Environment.GetEnvironmentVariable("PROTEUS_DUMP") is { } dumpPath)
         {
             Avalonia.Threading.DispatcherTimer.RunOnce(() =>
@@ -77,6 +79,7 @@ public partial class MainWindow : Window, IUiServices
                 File.WriteAllText(dumpPath, sb.ToString());
             }, TimeSpan.FromSeconds(3));
         }
+#endif
     }
 
     private StackPanel? _captionPanel;
@@ -198,7 +201,7 @@ public partial class MainWindow : Window, IUiServices
             if (selected.Count > 0)
             {
                 bool value = !selected[0].IsIncluded;
-                foreach (var f in selected) f.IsIncluded = value;
+                Vm.SetIncluded(selected, _ => value);
                 e.Handled = true;
             }
         }

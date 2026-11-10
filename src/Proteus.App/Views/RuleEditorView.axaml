@@ -116,6 +116,9 @@
             <RadioButton Classes="segment" Content="iNVERT" IsChecked="{Binding Mode, Converter={x:Static conv:EnumEqualsConverter.Instance}, ConverterParameter={x:Static rules:CaseMode.Invert}}" />
           </WrapPanel>
         </StackPanel>
+        <CheckBox IsChecked="{Binding UseLanguageRules}" ToolTip.Tip="For example Turkish, where I and i have dotted and dotless forms. Off: the same result on every PC.">
+          <TextBlock Text="Follow the Windows language's own case rules" TextWrapping="Wrap" />
+        </CheckBox>
       </StackPanel>
     </DataTemplate>
 

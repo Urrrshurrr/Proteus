@@ -45,7 +45,7 @@ public static class AppLog
                 Directory.CreateDirectory(Path.GetDirectoryName(AppPaths.Log)!);
                 var info = new FileInfo(AppPaths.Log);
                 if (info.Exists && info.Length > 2_000_000) info.Delete(); // keep it small
-                File.AppendAllText(AppPaths.Log, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {context}{(ex != null ? Environment.NewLine + ex : "")}{Environment.NewLine}");
+                File.AppendAllText(AppPaths.Log, $"[{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture)}] {context}{(ex != null ? Environment.NewLine + ex : "")}{Environment.NewLine}");
             }
         }
         catch (Exception) { /* logging must never throw */ }

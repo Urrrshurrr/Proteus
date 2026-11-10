@@ -233,6 +233,7 @@ public sealed class UndoJournal
     {
         var path = PathFor(record);
         if (File.Exists(path)) File.Delete(path);
+        RemoveOtherCopies(record, keep: null);
     }
 
     private void Save(BatchRecord record)
@@ -242,6 +243,22 @@ public sealed class UndoJournal
         var temp = path + ".tmp";
         File.WriteAllText(temp, JsonSerializer.Serialize(record, Json));
         File.Move(temp, path, overwrite: true); // never leaves a half-written record
+        RemoveOtherCopies(record, keep: path);
+    }
+
+    /// <summary>
+    /// Older versions named history files with the regional calendar; a record saved again under
+    /// its new name must not leave the old file behind as a duplicate.
+    /// </summary>
+    private void RemoveOtherCopies(BatchRecord record, string? keep)
+    {
+        try
+        {
+            if (!Directory.Exists(_folder)) return;
+            foreach (var f in Directory.EnumerateFiles(_folder, $"*-{record.Id}.json"))
+                if (!string.Equals(f, keep, StringComparison.OrdinalIgnoreCase)) File.Delete(f);
+        }
+        catch (Exception) { /* best effort */ }
     }
 
     private void Prune()
@@ -254,5 +271,6 @@ public sealed class UndoJournal
         catch (Exception) { /* best effort */ }
     }
 
-    private string PathFor(BatchRecord r) => Path.Combine(_folder, $"{r.Timestamp:yyyyMMdd-HHmmss}-{r.Id}.json");
+    private string PathFor(BatchRecord r) =>
+        Path.Combine(_folder, r.Timestamp.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture) + $"-{r.Id}.json");
 }

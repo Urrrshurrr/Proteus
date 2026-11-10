@@ -20,7 +20,7 @@ public static class TokenEngine
         new("<fullname>", "Original name with extension", "File"),
         new("<parent>", "Name of the containing folder", "File"),
         new("<parent:2>", "Name of the folder two levels up", "File"),
-        new("<drive>", "Drive letter, e.g. D", "File"),
+        new("<drive>", "Drive letter, e.g. D (on a network path: server-share)", "File"),
         new("<size>", "File size, human readable (e.g. 2.4 MB)", "File"),
         new("<size:kb>", "File size in KB (also :b, :mb, :gb)", "File"),
         new("<type>", "Windows file type, e.g. PDF Document", "File"),
@@ -44,8 +44,8 @@ public static class TokenEngine
         new("<exif:make>", "Camera maker", "Photo"),
         new("<exif:lens>", "Lens model", "Photo"),
         new("<exif:iso>", "ISO speed", "Photo"),
-        new("<exif:fnumber>", "Aperture, e.g. f/2.8", "Photo"),
-        new("<exif:exposure>", "Shutter speed", "Photo"),
+        new("<exif:fnumber>", "Aperture, e.g. f2.8", "Photo"),
+        new("<exif:exposure>", "Shutter speed, e.g. 1-250 sec", "Photo"),
         new("<exif:focal>", "Focal length", "Photo"),
         new("<exif:width>", "Image width in pixels", "Photo"),
         new("<exif:height>", "Image height in pixels", "Photo"),
@@ -96,7 +96,10 @@ public static class TokenEngine
 
     public static bool ContainsToken(string? text) => text != null && text.Contains('<');
 
-    public static string Expand(string? template, RuleContext ctx)
+    public static string Expand(string? template, RuleContext ctx) => Expand(template, ctx, null);
+
+    /// <param name="valueFilter">Applied to each token's value only, not to the text around it.</param>
+    public static string Expand(string? template, RuleContext ctx, Func<string, string>? valueFilter)
     {
         if (string.IsNullOrEmpty(template)) return string.Empty;
         if (!template.Contains('<')) return template.Replace("\\>", ">");
@@ -123,7 +126,7 @@ public static class TokenEngine
                     catch (Exception) { value = string.Empty; } // bad metadata never breaks a name
                     if (value != null)
                     {
-                        sb.Append(value);
+                        sb.Append(valueFilter == null ? value : valueFilter(value));
                         i = end + 1;
                         continue;
                     }
@@ -153,10 +156,10 @@ public static class TokenEngine
             case "count": return ctx.Count.ToString(CultureInfo.InvariantCulture);
             case "modified": return FormatDate(f.Modified, arg);
             case "created": return FormatDate(f.Created, arg);
-            case "now": return FormatDate(DateTime.Now, arg);
+            case "now": return FormatDate(ctx.Now, arg);
             case "accessed": return SafeAccessed(f.FullPath) is { } acc ? FormatDate(acc, arg) : string.Empty;
             case "size": return FormatSize(f.Size, arg);
-            case "drive": return Path.GetPathRoot(f.FullPath)?.TrimEnd('\\', ':') ?? string.Empty;
+            case "drive": return Drive(f.FullPath);
             case "type": return Sanitize(Text(f.Metadata.Shell("System.ItemTypeText")));
             case "owner": return Sanitize(StripDomain(Text(f.Metadata.Shell("System.FileOwner"))));
             case "firstline": return Sanitize(f.Metadata.FirstLine ?? string.Empty);
@@ -391,12 +394,45 @@ public static class TokenEngine
         return string.IsNullOrEmpty(name) ? dir.TrimEnd('\\', ':') : name;
     }
 
+    /// <summary>The drive letter, or for a network path (\\server\share) "server-share".</summary>
+    private static string Drive(string fullPath)
+    {
+        var root = Path.GetPathRoot(fullPath) ?? string.Empty;
+        if (root.StartsWith(@"\\", StringComparison.Ordinal) || root.StartsWith("//", StringComparison.Ordinal))
+            return Sanitize(root.Trim('\\', '/').Replace('\\', '-').Replace('/', '-'));
+        return root.TrimEnd('\\', '/', ':');
+    }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, CultureInfo> GregorianCultures = new();
+
+    /// <summary>
+    /// The culture used for dates in names: the Windows regional settings (month names, what "d"
+    /// means), but always on the Gregorian calendar, so a Thai or Saudi setting can't turn 2026
+    /// into 2569 or 1448.
+    /// </summary>
+    public static CultureInfo DateCulture
+    {
+        get
+        {
+            var current = CultureInfo.CurrentCulture;
+            if (current.DateTimeFormat.Calendar is GregorianCalendar) return current;
+            return GregorianCultures.GetOrAdd(current.Name, _ =>
+            {
+                var greg = current.OptionalCalendars.OfType<GregorianCalendar>().FirstOrDefault();
+                if (greg == null) return CultureInfo.InvariantCulture;
+                var clone = (CultureInfo)current.Clone();
+                clone.DateTimeFormat.Calendar = greg;
+                return CultureInfo.ReadOnly(clone);
+            });
+        }
+    }
+
     private static string FormatDate(DateTime d, string? fmt)
     {
         try
         {
             // Culture formats like "d" or "t" can contain / and : ; make them safe for file names.
-            return d.ToString(string.IsNullOrWhiteSpace(fmt) ? "yyyy-MM-dd" : fmt, CultureInfo.CurrentCulture)
+            return d.ToString(string.IsNullOrWhiteSpace(fmt) ? "yyyy-MM-dd" : fmt, DateCulture)
                 .Replace('/', '-').Replace('\\', '-').Replace(':', '.');
         }
         catch (FormatException)

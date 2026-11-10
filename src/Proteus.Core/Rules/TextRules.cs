@@ -43,14 +43,19 @@ public sealed partial class ReplaceRule : RenameRule
     partial void OnFindChanged(string value) => OnPropertyChanged(nameof(RegexError));
     partial void OnUseRegexChanged(bool value) => OnPropertyChanged(nameof(RegexError));
 
+    private bool _tooSlow;
+
     protected override string Transform(string input, RuleContext ctx)
     {
         if (Find.Length == 0) return input;
-        var replacement = TokenEngine.Expand(ReplaceWith, ctx);
         var regex = GetRegex();
-        if (regex == null) return input;
+        if (regex == null || _tooSlow) return input;
 
-        if (!UseRegex) replacement = replacement.Replace("$", "$$");
+        // In the replacement, "$" means a group reference ($1). Token values are plain text, so
+        // their dollars are escaped; with a plain-text search, every dollar is literal.
+        var replacement = UseRegex
+            ? TokenEngine.Expand(ReplaceWith, ctx, v => v.Replace("$", "$$"))
+            : TokenEngine.Expand(ReplaceWith, ctx).Replace("$", "$$");
         try
         {
             switch (Occurrence)
@@ -70,6 +75,10 @@ public sealed partial class ReplaceRule : RenameRule
         }
         catch (RegexMatchTimeoutException)
         {
+            // One slow name means the pattern will be slow on many: stop rather than make the
+            // preview crawl, and say why.
+            _tooSlow = true;
+            RuntimeError = "This pattern takes too long on some names, so the rule was stopped. Try a simpler pattern (for example, avoid nested repeats like (a+)+).";
             return input;
         }
     }
@@ -79,6 +88,7 @@ public sealed partial class ReplaceRule : RenameRule
         var key = $"{UseRegex}|{CaseSensitive}|{Find}";
         if (_cacheKey == key) return _cache;
         _cacheKey = key;
+        _tooSlow = false;
         try
         {
             var opts = RegexOptions.CultureInvariant | (CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase);
@@ -127,7 +137,7 @@ public sealed partial class InsertRule : RenameRule
             {
                 int pos = Math.Clamp(Index - 1, 0, input.Length);
                 if (FromEnd) pos = Math.Clamp(input.Length - (Index - 1), 0, input.Length);
-                return input.Insert(pos, text);
+                return input.Insert(TextSafe.Boundary(input, pos), text);
             }
             case InsertPosition.BeforeText:
             case InsertPosition.AfterText:
@@ -158,16 +168,23 @@ public sealed partial class RemoveRule : RenameRule
     {
         if (Count <= 0 || input.Length == 0) return input;
         int skip = Math.Max(0, Start - 1);
+        int begin, end;
         if (!FromEnd)
         {
             if (skip >= input.Length) return input;
-            int n = Math.Min(Count, input.Length - skip);
-            return input.Remove(skip, n);
+            begin = skip;
+            end = skip + Math.Min(Count, input.Length - skip);
         }
-        int endExclusive = input.Length - skip;
-        if (endExclusive <= 0) return input;
-        int begin = Math.Max(0, endExclusive - Count);
-        return input.Remove(begin, endExclusive - begin);
+        else
+        {
+            end = input.Length - skip;
+            if (end <= 0) return input;
+            begin = Math.Max(0, end - Count);
+        }
+        // Never cut an emoji or other two-part character in half: remove all of it.
+        begin = TextSafe.Boundary(input, begin);
+        end = TextSafe.BoundaryAfter(input, end);
+        return end <= begin ? input : input.Remove(begin, end - begin);
     }
 }
 
@@ -176,6 +193,12 @@ public enum CaseMode { Lower, Upper, Title, Sentence, Invert }
 public sealed partial class CaseRule : RenameRule
 {
     [ObservableProperty] private CaseMode _mode = CaseMode.Title;
+
+    /// <summary>
+    /// Use the Windows language's own case rules (Turkish dotted and dotless i, for example).
+    /// Off by default, so FILE becomes file on every PC.
+    /// </summary>
+    [ObservableProperty] private bool _useLanguageRules;
 
     public override string Title => "Change case";
     public override string Icon => "Aa";
@@ -190,7 +213,7 @@ public sealed partial class CaseRule : RenameRule
 
     protected override string Transform(string input, RuleContext ctx)
     {
-        var culture = CultureInfo.CurrentCulture;
+        var culture = UseLanguageRules ? CultureInfo.CurrentCulture : CultureInfo.InvariantCulture;
         switch (Mode)
         {
             case CaseMode.Lower: return input.ToLower(culture);
@@ -263,7 +286,8 @@ public sealed partial class NumberingRule : RenameRule
 
     protected override string Transform(string input, RuleContext ctx)
     {
-        long idx = ResetPerFolder ? ctx.FolderIndex : ctx.Index;
+        var (index, folderIndex) = ScopedPosition(ctx);
+        long idx = ResetPerFolder ? folderIndex : index;
         var number = TokenEngine.Pad(StartAt + idx * Step, Digits);
         return Placement switch
         {
@@ -337,9 +361,9 @@ public sealed partial class CleanupRule : RenameRule
         if (UnderscoresToSpaces) s = s.Replace('_', ' ');
         if (DotsToSpaces) s = s.Replace('.', ' ');
         if (DashesToSpaces) s = s.Replace('-', ' ');
-        if (RemoveRoundBrackets) s = Round.Replace(s, string.Empty);
-        if (RemoveSquareBrackets) s = Square.Replace(s, string.Empty);
-        if (RemoveCurlyBrackets) s = Curly.Replace(s, string.Empty);
+        if (RemoveRoundBrackets) s = RemoveNested(Round, s);
+        if (RemoveSquareBrackets) s = RemoveNested(Square, s);
+        if (RemoveCurlyBrackets) s = RemoveNested(Curly, s);
         if (StripDiacritics) s = RemoveDiacritics(s);
         if (StripDigits) s = new string(s.Where(c => !char.IsDigit(c)).ToArray());
         if (StripSymbols) s = new string(s.Where(c => char.IsLetterOrDigit(c) || char.IsWhiteSpace(c) || c is '.' or '-' or '_').ToArray());
@@ -347,7 +371,19 @@ public sealed partial class CleanupRule : RenameRule
         if (CollapseSpaces) s = Spaces.Replace(s, " ");
         if (Trim) s = s.Trim();
         if (SpaceReplacement.Length > 0) s = s.Replace(" ", SpaceReplacement);
-        if (MaxLength > 0 && s.Length > MaxLength) s = s[..MaxLength].TrimEnd();
+        if (MaxLength > 0 && s.Length > MaxLength) s = s[..TextSafe.Boundary(s, MaxLength)].TrimEnd();
+        return s;
+    }
+
+    /// <summary>Removes bracketed text from the inside out, so "(2010 (remaster))" goes completely.</summary>
+    private static string RemoveNested(Regex pattern, string s)
+    {
+        for (int i = 0; i < 10; i++)
+        {
+            var next = pattern.Replace(s, string.Empty);
+            if (next == s) break;
+            s = next;
+        }
         return s;
     }
 
@@ -414,5 +450,26 @@ public sealed partial class PadNumbersRule : RenameRule
     {
         if (RemovePadding) return Numbers.Replace(input, m => m.Value.TrimStart('0') is { Length: > 0 } t ? t : "0");
         return Digits <= 0 ? input : Numbers.Replace(input, m => m.Value.Length >= Digits ? m.Value : m.Value.PadLeft(Digits, '0'));
+    }
+}
+
+/// <summary>Helpers for cutting text without breaking characters apart.</summary>
+public static class TextSafe
+{
+    /// <summary>
+    /// Moves a cut position back by one when it would split a character that takes two code units
+    /// (most emoji and some rare letters), so a name never ends up with half a character.
+    /// </summary>
+    public static int Boundary(string s, int index)
+    {
+        if (index <= 0 || index >= s.Length) return Math.Clamp(index, 0, s.Length);
+        return char.IsHighSurrogate(s[index - 1]) && char.IsLowSurrogate(s[index]) ? index - 1 : index;
+    }
+
+    /// <summary>Like <see cref="Boundary"/>, but moves forward, so the whole character is included.</summary>
+    public static int BoundaryAfter(string s, int index)
+    {
+        if (index <= 0 || index >= s.Length) return Math.Clamp(index, 0, s.Length);
+        return char.IsHighSurrogate(s[index - 1]) && char.IsLowSurrogate(s[index]) ? index + 1 : index;
     }
 }

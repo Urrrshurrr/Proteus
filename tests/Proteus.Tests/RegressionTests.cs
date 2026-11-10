@@ -157,7 +157,7 @@ public class RegressionTests
         var rules = new RenameRule[] { new RemoveRule { Count = 10 }, new RearrangeRule { Delimiter = "", Pattern = "$L-$1" } };
         var (name, problem) = RenamePipeline.RunSafe(e, rules, new RuleContext(e, 0, 0, 1));
         Assert.Null(problem);
-        Assert.Equal("-.txt", name);
+        Assert.Equal(".txt", name); // nothing to rearrange, so the (empty) name is left alone
     }
 
     [Fact]
